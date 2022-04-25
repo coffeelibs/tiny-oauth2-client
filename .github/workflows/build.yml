@@ -17,8 +17,24 @@ jobs:
           cache: 'maven'
           gpg-private-key: ${{ secrets.RELEASES_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
       - name: Build and Test
-        run: mvn -B install
+        run: >
+          mvn -B verify
+          jacoco:report
+          org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Pcoverage,dependency-check
+          -Dsonar.projectKey=coffeelibs_tiny-oauth2-client
+          -Dsonar.organization=coffeelibs
+          -Dsonar.host.url=https://sonarcloud.io
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Deploy to GitHub Packages
         if: startsWith(github.ref, 'refs/tags/')
         run: mvn -B deploy -Psign,deploy-github -DskipTests --no-transfer-progress

@@ -1,4 +1,10 @@
-# Tiny OAuth2
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=coffeelibs_tiny-oauth2-client&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=coffeelibs_tiny-oauth2-client)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=coffeelibs_tiny-oauth2-client&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=coffeelibs_tiny-oauth2-client)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=coffeelibs_tiny-oauth2-client&metric=coverage)](https://sonarcloud.io/summary/new_code?id=coffeelibs_tiny-oauth2-client)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=coffeelibs_tiny-oauth2-client&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=coffeelibs_tiny-oauth2-client)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=coffeelibs_tiny-oauth2-client&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=coffeelibs_tiny-oauth2-client)
+
+# Tiny OAuth2 Client
 
 This is a minimal zero-dependency implementation of the [RFC 8252 OAuth 2.0 for Native Apps](https://datatracker.ietf.org/doc/html/rfc8252), relying
 on [Loopback Interface Redirection](https://datatracker.ietf.org/doc/html/rfc8252#section-7.3) (i.e. no need to register a private-use URI scheme) with full

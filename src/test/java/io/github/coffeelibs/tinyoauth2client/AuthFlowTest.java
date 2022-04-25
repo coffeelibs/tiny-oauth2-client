@@ -1,7 +1,7 @@
-package io.coffeelibs.tinyoauth2client;
+package io.github.coffeelibs.tinyoauth2client;
 
-import io.coffeelibs.tinyoauth2client.http.RedirectTarget;
-import io.coffeelibs.tinyoauth2client.util.URIUtil;
+import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
+import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;

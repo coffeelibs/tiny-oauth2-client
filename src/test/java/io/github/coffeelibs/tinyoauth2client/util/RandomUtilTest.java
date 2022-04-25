@@ -1,4 +1,4 @@
-package io.coffeelibs.tinyoauth2client.util;
+package io.github.coffeelibs.tinyoauth2client.util;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

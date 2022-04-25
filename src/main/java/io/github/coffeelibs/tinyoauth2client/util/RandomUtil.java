@@ -1,4 +1,4 @@
-package io.coffeelibs.tinyoauth2client.util;
+package io.github.coffeelibs.tinyoauth2client.util;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;

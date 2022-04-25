@@ -28,7 +28,7 @@ jobs:
           mvn -B verify
           jacoco:report
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-          -Pcoverage,dependency-check
+          -Pcoverage
           -Dsonar.projectKey=coffeelibs_tiny-oauth2-client
           -Dsonar.organization=coffeelibs
           -Dsonar.host.url=https://sonarcloud.io

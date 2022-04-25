@@ -1,7 +1,7 @@
-package io.coffeelibs.tinyoauth2client;
+package io.github.coffeelibs.tinyoauth2client;
 
-import io.coffeelibs.tinyoauth2client.http.RedirectTarget;
-import io.coffeelibs.tinyoauth2client.util.RandomUtil;
+import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
+import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.VisibleForTesting;
 

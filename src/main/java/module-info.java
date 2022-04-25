@@ -1,6 +1,6 @@
-module io.coffeelibs.tinyoauth2client {
+module io.github.coffeelibs.tinyoauth2client {
 	requires static org.jetbrains.annotations;
 	requires java.net.http;
 
-	exports io.coffeelibs.tinyoauth2client;
+	exports io.github.coffeelibs.tinyoauth2client;
 }

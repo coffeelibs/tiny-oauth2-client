@@ -1,7 +1,7 @@
-package io.coffeelibs.tinyoauth2client.http;
+package io.github.coffeelibs.tinyoauth2client.http;
 
-import io.coffeelibs.tinyoauth2client.util.RandomUtil;
-import io.coffeelibs.tinyoauth2client.util.URIUtil;
+import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
+import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.BufferedReader;

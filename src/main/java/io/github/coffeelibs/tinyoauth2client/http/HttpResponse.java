@@ -1,4 +1,4 @@
-package io.coffeelibs.tinyoauth2client.http;
+package io.github.coffeelibs.tinyoauth2client.http;
 
 import java.io.IOException;
 import java.io.Writer;

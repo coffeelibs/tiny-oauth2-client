@@ -1,6 +1,6 @@
-package io.coffeelibs.tinyoauth2client;
+package io.github.coffeelibs.tinyoauth2client;
 
-import io.coffeelibs.tinyoauth2client.util.RandomUtil;
+import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

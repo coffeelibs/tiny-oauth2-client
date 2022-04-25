@@ -13,7 +13,7 @@ support for [PKCE](https://datatracker.ietf.org/doc/html/rfc8252#section-8.1) an
 ## Usage
 
 ```java
-// this library will just to the Authorization Flow:
+// this library will just perform the Authorization Flow:
 String tokenResponse = AuthFlow.asClient("oauth-client-id")
         .authorize(URI.create("https://login.example.com/oauth2/authorize"), uri -> System.out.println("Please login on " + uri))
         .getAccessToken(URI.create("https://login.example.com/oauth2/token"));

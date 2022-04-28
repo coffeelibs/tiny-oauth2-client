@@ -6,12 +6,12 @@ import org.junit.jupiter.api.Test;
 import java.io.CharArrayWriter;
 import java.io.IOException;
 
-public class HttpEmptyResponseTest {
+public class EmptyResponseTest {
 
 	@Test
 	public void testWrite() throws IOException {
 		var html = "<html><body>Hello World</body></html>";
-		var response = new HttpHtmlResponse(HttpResponse.Status.OK, html);
+		var response = new HtmlResponse(Response.Status.OK, html);
 		var writer = new CharArrayWriter();
 
 		response.write(writer);

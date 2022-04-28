@@ -28,11 +28,49 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Timeout(value = 3)
+@SuppressWarnings("resource")
 public class RedirectTargetTest {
+
+	@Test
+	@DisplayName("start() doesn't accept a relative path")
+	public void testStartWithRelativePath() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> RedirectTarget.start("hello"));
+	}
+
+	@Test
+	@DisplayName("setSuccessResponse() fails on null")
+	public void testSetSuccessNull() throws IOException {
+		try (var target = RedirectTarget.start("/")) {
+			Assertions.assertThrows(NullPointerException.class, () -> target.setSuccessResponse(null));
+		}
+	}
+
+	@Test
+	@DisplayName("setSuccessResponse() succeeds on non-null")
+	public void testSetSuccessNonNull() throws IOException {
+		try (var target = RedirectTarget.start("/")) {
+			Assertions.assertDoesNotThrow(() -> target.setSuccessResponse(Response.empty(Response.Status.OK)));
+		}
+	}
+
+	@Test
+	@DisplayName("setErrorResponse() fails on null")
+	public void testSetErrorNull() throws IOException {
+		try (var target = RedirectTarget.start("/")) {
+			Assertions.assertThrows(NullPointerException.class, () -> target.setErrorResponse(null));
+		}
+	}
+
+	@Test
+	@DisplayName("setErrorResponse() succeeds on non-null")
+	public void testSetErrorNonNull() throws IOException {
+		try (var target = RedirectTarget.start("/")) {
+			Assertions.assertDoesNotThrow(() -> target.setErrorResponse(Response.empty(Response.Status.OK)));
+		}
+	}
 
 	@Test
 	@DisplayName("start() doesn't leak resource on error")
@@ -134,9 +172,11 @@ public class RedirectTargetTest {
 
 	@Test
 	@DisplayName("http response 400 for missing code")
-	public void testRedirectMissingCode() throws IOException, InterruptedException {
+	public void testRedirectMissingCode() throws IOException, InterruptedException, URISyntaxException {
 		try (var redirect = RedirectTarget.start("/")) {
-			var uri = redirect.getRedirectUri();
+			var baseUri = redirect.getRedirectUri();
+			var query = "state=" + redirect.getCsrfToken();
+			var uri = new URI(baseUri.getScheme(), baseUri.getAuthority(), baseUri.getPath(), query, baseUri.getFragment());
 
 			var accessToken = receiveAsync(redirect);
 			var request = HttpRequest.newBuilder(uri).GET().build();
@@ -211,10 +251,10 @@ public class RedirectTargetTest {
 			var threadStarted = new CountDownLatch(1);
 			var threadExited = new CountDownLatch(1);
 			var exception = new AtomicReference<Exception>();
-			var future = Executors.newSingleThreadExecutor().submit(() -> {
+			var thread = new Thread(() -> {
 				try {
 					threadStarted.countDown();
-					return redirect.receive();
+					redirect.receive();
 				} catch (IOException e) {
 					exception.set(e);
 					throw new UncheckedIOException(e);
@@ -222,9 +262,10 @@ public class RedirectTargetTest {
 					threadExited.countDown();
 				}
 			});
+			thread.start();
 
 			threadStarted.await();
-			future.cancel(true);
+			thread.interrupt();
 			threadExited.await();
 
 			Assertions.assertInstanceOf(ClosedByInterruptException.class, exception.get());

@@ -7,11 +7,11 @@ import java.io.CharArrayWriter;
 import java.io.IOException;
 import java.net.URI;
 
-public class HttpRedirectResponseTest {
+public class RedirectResponseTest {
 
 	@Test
 	public void testWrite() throws IOException {
-		var response = new HttpRedirectResponse(HttpResponse.Status.SEE_OTHER, URI.create("http://google.com"));
+		var response = new RedirectResponse(Response.Status.SEE_OTHER, URI.create("http://google.com"));
 		var writer = new CharArrayWriter();
 
 		response.write(writer);

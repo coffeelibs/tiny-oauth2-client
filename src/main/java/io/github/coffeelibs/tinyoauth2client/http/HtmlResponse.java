@@ -4,12 +4,12 @@ import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 
-class HttpHtmlResponse implements HttpResponse {
+class HtmlResponse implements Response {
 
 	private final Status status;
 	private final String body;
 
-	public HttpHtmlResponse(Status status, String body) {
+	public HtmlResponse(Status status, String body) {
 		this.status = status;
 		this.body = body;
 	}

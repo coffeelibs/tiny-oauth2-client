@@ -16,6 +16,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Objects;
 
 /**
  * A TCP connector to deal with the redirect response. We only listen for the expected response,
@@ -36,7 +37,8 @@ public class RedirectTarget implements Closeable {
 	private final String path;
 	private final String csrfToken;
 
-	private HttpResponse successResponse = HttpResponse.html(HttpResponse.Status.OK, "<html><body>Success</body></html>"); // TODO: allow customization with custom html or redirect
+	private Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>");
+	private Response errorResponse = Response.html(Response.Status.OK, "<html><body>Error</body></html>");
 
 	private RedirectTarget(ServerSocketChannel serverChannel, String path) {
 		this.serverChannel = serverChannel;
@@ -91,6 +93,14 @@ public class RedirectTarget implements Closeable {
 		}
 	}
 
+	public void setSuccessResponse(Response successResponse) {
+		this.successResponse = Objects.requireNonNull(successResponse);
+	}
+
+	public void setErrorResponse(Response errorResponse) {
+		this.errorResponse = Objects.requireNonNull(errorResponse);
+	}
+
 	public URI getRedirectUri() {
 		try {
 			// use 127.0.0.1, not "localhost", see https://datatracker.ietf.org/doc/html/rfc8252#section-8.3
@@ -126,23 +136,24 @@ public class RedirectTarget implements Closeable {
 				throw new IOException("Unparseable Request", e);
 			}
 			if (!Path.of(path).equals(Path.of(requestUri.getPath()))) {
-				HttpResponse.empty(HttpResponse.Status.NOT_FOUND).write(writer);
+				Response.empty(Response.Status.NOT_FOUND).write(writer);
 				throw new IOException("Requested invalid path " + requestUri);
 			}
 
 			var params = URIUtil.parseQueryString(requestUri.getRawQuery());
 			if (!csrfToken.equals(params.get("state"))) {
-				HttpResponse.empty(HttpResponse.Status.BAD_REQUEST).write(writer);
+				Response.empty(Response.Status.BAD_REQUEST).write(writer);
 				throw new IOException("Missing or invalid state token");
 			} else if (params.containsKey("error")) {
-				var html = "<html><body>" + params.get("error") + "</body></html>";
-				HttpResponse.html(HttpResponse.Status.OK, html).write(writer);
+//				var html = "<html><body>" + params.get("error") + "</body></html>";
+//				Response.html(Response.Status.OK, html).write(writer);
+				errorResponse.write(writer); // TODO insert error code?
 				throw new IOException("Authorization failed"); // TODO more specific exception containing the error code
 			} else if (params.containsKey("code")) {
 				successResponse.write(writer);
 				return params.get("code");
 			} else {
-				HttpResponse.empty(HttpResponse.Status.BAD_REQUEST).write(writer);
+				Response.empty(Response.Status.BAD_REQUEST).write(writer);
 				throw new IOException("Missing authorization code");
 			}
 		}
@@ -159,16 +170,16 @@ public class RedirectTarget implements Closeable {
 	static URI parseRequestLine(String requestLine) throws InvalidRequestException {
 		var words = requestLine.split(" ");
 		if (words.length < 3) {
-			throw new InvalidRequestException(HttpResponse.empty(HttpResponse.Status.BAD_REQUEST));
+			throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
 		}
 		var method = words[0];
 		if (!"GET".equals(method)) {
-			throw new InvalidRequestException(HttpResponse.empty(HttpResponse.Status.METHOD_NOT_ALLOWED));
+			throw new InvalidRequestException(Response.empty(Response.Status.METHOD_NOT_ALLOWED));
 		}
 		try {
 			return new URI(words[1]);
 		} catch (URISyntaxException e) {
-			throw new InvalidRequestException(HttpResponse.empty(HttpResponse.Status.BAD_REQUEST));
+			throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
 		}
 	}
 

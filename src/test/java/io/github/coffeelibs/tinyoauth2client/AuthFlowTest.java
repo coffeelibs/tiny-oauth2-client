@@ -20,7 +20,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class AuthFlowTest {
@@ -48,27 +47,36 @@ public class AuthFlowTest {
 	}
 
 	@Nested
+	@SuppressWarnings("resource")
 	@Timeout(1)
 	@DisplayName("With mocked redirect target")
 	public class WithMockedRedirectTarget {
 
+		private URI authEndpoint;
 		private RedirectTarget redirectTarget;
 		private MockedStatic<RedirectTarget> redirectTargetClass;
-		private CountDownLatch redirected;
+		private Consumer<URI> browser;
 
 		@BeforeEach
+		@SuppressWarnings({"unchecked"})
 		public void setup() throws IOException {
+			authEndpoint = URI.create("https://login.example.com/");
 			redirectTarget = Mockito.mock(RedirectTarget.class);
 			redirectTargetClass = Mockito.mockStatic(RedirectTarget.class);
-			redirectTargetClass.when(() -> RedirectTarget.start("/foo", 1234)).thenReturn(redirectTarget);
-			redirected = new CountDownLatch(1);
+			redirectTargetClass.when(() -> RedirectTarget.start(Mockito.any(), Mockito.any())).thenReturn(redirectTarget);
+			browser = Mockito.mock(Consumer.class);
 
+			var redirected = new CountDownLatch(1);
 			Mockito.doReturn(URI.create("http://127.0.0.1:1234/foo")).when(redirectTarget).getRedirectUri();
 			Mockito.doReturn("csrf-token").when(redirectTarget).getCsrfToken();
 			Mockito.doAnswer(invocation -> {
 				redirected.await();
 				return "authCode";
 			}).when(redirectTarget).receive();
+			Mockito.doAnswer(invocation -> {
+				redirected.countDown();
+				return null;
+			}).when(browser).accept(Mockito.any());
 		}
 
 		@AfterEach
@@ -77,23 +85,98 @@ public class AuthFlowTest {
 		}
 
 		@Test
-		@DisplayName("authorize(...) succeeds if browser redirects to URI")
-		public void testAuthorize() throws IOException {
-			URI authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
-			AtomicReference<URI> browsedUri = new AtomicReference<>();
-			Consumer<URI> browser = uri -> {
-				browsedUri.set(uri);
-				redirected.countDown();
-			};
+		@DisplayName("authorize(...) with random path")
+		public void testAuthorizeWithRandomPath() {
 			var authFlow = AuthFlow.asClient("my-client");
 
-			var result = authFlow.authorize(authEndpoint, browser, Set.of("scope1", "scope2"), "/foo", 1234);
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(authEndpoint, browser));
+
+			redirectTargetClass.verify(() -> RedirectTarget.start(Mockito.matches("/[0-9a-zA-Z_-]{4,}")));
+		}
+
+		@Test
+		@DisplayName("authorize(...) with fixed path and port")
+		public void testAuthorizeWithFixedPathAndPorts() {
+			var authFlow = AuthFlow.asClient("my-client");
+
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(authEndpoint, browser, Set.of("scope1", "scope2"), "/foo", 1234, 5678));
+
+			redirectTargetClass.verify(() -> RedirectTarget.start("/foo", 1234, 5678));
+		}
+
+		@Test
+		@DisplayName("withSuccessHtml(...) gets applied during authorize(...)")
+		public void testWithSuccessHtml() {
+			var authFlow = AuthFlow.asClient("my-client").withSuccessHtml("test");
+
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(authEndpoint, browser));
+
+			Mockito.verify(redirectTarget).setSuccessResponse(Mockito.notNull());
+		}
+
+		@Test
+		@DisplayName("withSuccessRedirect(...) gets applied during authorize(...)")
+		public void testWithSuccessRedirect() {
+			var authFlow = AuthFlow.asClient("my-client").withSuccessRedirect(URI.create("https://example.com"));
+
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(authEndpoint, browser));
+
+			Mockito.verify(redirectTarget).setSuccessResponse(Mockito.notNull());
+		}
+
+		@Test
+		@DisplayName("withErrorRedirect(...) gets applied during authorize(...)")
+		public void testWithErrorRedirect() {
+			var authFlow = AuthFlow.asClient("my-client").withErrorRedirect(URI.create("https://example.com"));
+
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(authEndpoint, browser));
+
+			Mockito.verify(redirectTarget).setErrorResponse(Mockito.notNull());
+		}
+
+		@Test
+		@DisplayName("withErrorHtml(...) gets applied during authorize(...)")
+		public void testWithErrorHtml() {
+			var authFlow = AuthFlow.asClient("my-client").withErrorHtml("test");
+
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(authEndpoint, browser));
+
+			Mockito.verify(redirectTarget).setErrorResponse(Mockito.notNull());
+		}
+
+		@Test
+		@DisplayName("authorize(...) with existing query string in authorization endpoint")
+		public void testAuthorizeWithExistingQueryParams() throws IOException {
+			authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
+			var authFlow = AuthFlow.asClient("my-client");
+
+			var result = authFlow.authorize(authEndpoint, browser);
 
 			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
-			Assertions.assertNotNull(browsedUri.get());
-			Assertions.assertNotNull(browsedUri.get().getRawQuery());
-			var queryParams = URIUtil.parseQueryString(browsedUri.get().getRawQuery());
+			var browsedUriCaptor = ArgumentCaptor.forClass(URI.class);
+			Mockito.verify(browser).accept(browsedUriCaptor.capture());
+			var browsedUri = browsedUriCaptor.getValue();
+			Assertions.assertNotNull(browsedUri);
+			Assertions.assertNotNull(browsedUri.getRawQuery());
+			var queryParams = URIUtil.parseQueryString(browsedUri.getRawQuery());
 			Assertions.assertEquals("existing-value", queryParams.get("existing_param"));
+			Assertions.assertEquals("code", queryParams.get("response_type"));
+		}
+
+		@Test
+		@DisplayName("authorize(...) with custom scopes")
+		public void testAuthorize() throws IOException {
+			var authFlow = AuthFlow.asClient("my-client");
+
+			var result = authFlow.authorize(authEndpoint, browser, "scope1", "scope2");
+
+			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
+			var browsedUriCaptor = ArgumentCaptor.forClass(URI.class);
+			Mockito.verify(browser).accept(browsedUriCaptor.capture());
+			var browsedUri = browsedUriCaptor.getValue();
+			Assertions.assertNotNull(browsedUri);
+			Assertions.assertNotNull(browsedUri.getRawQuery());
+			var queryParams = URIUtil.parseQueryString(browsedUri.getRawQuery());
 			Assertions.assertEquals(authFlow.clientId, queryParams.get("client_id"));
 			Assertions.assertEquals("code", queryParams.get("response_type"));
 			Assertions.assertEquals(redirectTarget.getCsrfToken(), queryParams.get("state"));

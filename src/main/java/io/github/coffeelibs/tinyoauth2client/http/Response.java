@@ -4,20 +4,20 @@ import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
 
-interface HttpResponse {
+public interface Response {
 
 	void write(Writer writer) throws IOException;
 
-	static HttpResponse empty(Status status) {
-		return new HttpEmptyResponse(status);
+	static Response empty(Status status) {
+		return new EmptyResponse(status);
 	}
 
-	static HttpResponse html(Status status, String body) {
-		return new HttpHtmlResponse(status, body);
+	static Response html(Status status, String body) {
+		return new HtmlResponse(status, body);
 	}
 
-	static HttpResponse redirect(URI target) {
-		return new HttpRedirectResponse(Status.SEE_OTHER, target);
+	static Response redirect(URI target) {
+		return new RedirectResponse(Status.SEE_OTHER, target);
 	}
 
 	enum Status {

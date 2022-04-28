@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.github.coffeelibs</groupId>
 	<artifactId>tiny-oauth2-client</artifactId>
-	<version>0.2.0-SNAPSHOT</version>
+	<version>0.3.0-SNAPSHOT</version>
 	<name>Tiny OAuth2 Client</name>
 	<description>Zero Dependency RFC 8252 Authorization Flow</description>
 	<inceptionYear>2022</inceptionYear>

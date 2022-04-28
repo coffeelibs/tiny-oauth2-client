@@ -36,7 +36,7 @@ public class RedirectTarget implements Closeable {
 	private final String path;
 	private final String csrfToken;
 
-	private HttpResponse successResponse = HttpResponse.html(HttpResponse.Status.OK, "<html><body>Success</body></html>"); // TODO: allow customization with custom html or redirect
+	private Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>"); // TODO: allow customization with custom html or redirect
 
 	private RedirectTarget(ServerSocketChannel serverChannel, String path) {
 		this.serverChannel = serverChannel;
@@ -126,23 +126,23 @@ public class RedirectTarget implements Closeable {
 				throw new IOException("Unparseable Request", e);
 			}
 			if (!Path.of(path).equals(Path.of(requestUri.getPath()))) {
-				HttpResponse.empty(HttpResponse.Status.NOT_FOUND).write(writer);
+				Response.empty(Response.Status.NOT_FOUND).write(writer);
 				throw new IOException("Requested invalid path " + requestUri);
 			}
 
 			var params = URIUtil.parseQueryString(requestUri.getRawQuery());
 			if (!csrfToken.equals(params.get("state"))) {
-				HttpResponse.empty(HttpResponse.Status.BAD_REQUEST).write(writer);
+				Response.empty(Response.Status.BAD_REQUEST).write(writer);
 				throw new IOException("Missing or invalid state token");
 			} else if (params.containsKey("error")) {
 				var html = "<html><body>" + params.get("error") + "</body></html>";
-				HttpResponse.html(HttpResponse.Status.OK, html).write(writer);
+				Response.html(Response.Status.OK, html).write(writer);
 				throw new IOException("Authorization failed"); // TODO more specific exception containing the error code
 			} else if (params.containsKey("code")) {
 				successResponse.write(writer);
 				return params.get("code");
 			} else {
-				HttpResponse.empty(HttpResponse.Status.BAD_REQUEST).write(writer);
+				Response.empty(Response.Status.BAD_REQUEST).write(writer);
 				throw new IOException("Missing authorization code");
 			}
 		}
@@ -159,16 +159,16 @@ public class RedirectTarget implements Closeable {
 	static URI parseRequestLine(String requestLine) throws InvalidRequestException {
 		var words = requestLine.split(" ");
 		if (words.length < 3) {
-			throw new InvalidRequestException(HttpResponse.empty(HttpResponse.Status.BAD_REQUEST));
+			throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
 		}
 		var method = words[0];
 		if (!"GET".equals(method)) {
-			throw new InvalidRequestException(HttpResponse.empty(HttpResponse.Status.METHOD_NOT_ALLOWED));
+			throw new InvalidRequestException(Response.empty(Response.Status.METHOD_NOT_ALLOWED));
 		}
 		try {
 			return new URI(words[1]);
 		} catch (URISyntaxException e) {
-			throw new InvalidRequestException(HttpResponse.empty(HttpResponse.Status.BAD_REQUEST));
+			throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
 		}
 	}
 

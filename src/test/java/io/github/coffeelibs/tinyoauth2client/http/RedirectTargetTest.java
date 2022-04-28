@@ -31,7 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
-@Timeout(value = 1)
+@Timeout(value = 3)
 public class RedirectTargetTest {
 
 	@Test

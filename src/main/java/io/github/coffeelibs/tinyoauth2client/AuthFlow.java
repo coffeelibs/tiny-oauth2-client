@@ -1,8 +1,10 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
+import io.github.coffeelibs.tinyoauth2client.http.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
@@ -32,6 +34,9 @@ public class AuthFlow {
 	@VisibleForTesting
 	final PKCE pkce;
 
+	private Response successResponse;
+	private Response errorResponse;
+
 	private AuthFlow(String clientId) {
 		this.clientId = clientId;
 		this.pkce = new PKCE();
@@ -48,6 +53,54 @@ public class AuthFlow {
 	}
 
 	/**
+	 * HTML to display in the Resource Owner's user agent after successful authorization.
+	 *
+	 * @param html content served with {@code Content-Type: text/html; charset=UTF-8}
+	 * @return this
+	 */
+	@Contract("_ -> this")
+	public AuthFlow withSuccessHtml(String html) {
+		this.successResponse = Response.html(Response.Status.OK, html);
+		return this;
+	}
+
+	/**
+	 * Where to redirect the Resource Owner's user agent after successful authorization.
+	 *
+	 * @param target URI of page to show
+	 * @return this
+	 */
+	@Contract("_ -> this")
+	public AuthFlow withSuccessRedirect(URI target) {
+		this.successResponse = Response.redirect(target);
+		return this;
+	}
+
+	/**
+	 * HTML to display in the Resource Owner's user agent after failed authorization.
+	 *
+	 * @param html content served with {@code Content-Type: text/html; charset=UTF-8}
+	 * @return this
+	 */
+	@Contract("_ -> this")
+	public AuthFlow withErrorHtml(String html) {
+		this.errorResponse = Response.html(Response.Status.OK, html);
+		return this;
+	}
+
+	/**
+	 * Where to redirect the Resource Owner's user agent after failed authorization.
+	 *
+	 * @param target URI of page to show
+	 * @return this
+	 */
+	@Contract("_ -> this")
+	public AuthFlow withErrorRedirect(URI target) {
+		this.errorResponse = Response.redirect(target);
+		return this;
+	}
+
+	/**
 	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
 	 *
@@ -58,6 +111,7 @@ public class AuthFlow {
 	 * @throws IOException In case of I/O errors during communication between browser and this application
 	 * @see #authorize(URI, Consumer, Set, String, int...)
 	 */
+	@Blocking
 	public AuthFlowWithCode authorize(URI authEndpoint, Consumer<URI> browser, String... scopes) throws IOException {
 		return authorize(authEndpoint, browser, Set.of(scopes), "/" + RandomUtil.randomToken(16));
 	}
@@ -77,6 +131,12 @@ public class AuthFlow {
 	@Blocking
 	public AuthFlowWithCode authorize(URI authEndpoint, Consumer<URI> browser, Set<String> scopes, String path, int... ports) throws IOException {
 		try (var redirectTarget = RedirectTarget.start(path, ports)) {
+			if (successResponse != null) {
+				redirectTarget.setSuccessResponse(successResponse);
+			}
+			if (errorResponse != null) {
+				redirectTarget.setErrorResponse(errorResponse);
+			}
 			var encodedRedirectUri = URLEncoder.encode(redirectTarget.getRedirectUri().toASCIIString(), StandardCharsets.US_ASCII);
 
 			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1
@@ -107,8 +167,8 @@ public class AuthFlow {
 	 * The successfully authenticated authentication flow, ready to retrieve an access token.
 	 */
 	public class AuthFlowWithCode {
-		private String encodedRedirectUri;
-		private String authorizationCode;
+		private final String encodedRedirectUri;
+		private final String authorizationCode;
 
 		@VisibleForTesting
 		AuthFlowWithCode(String encodedRedirectUri, String authorizationCode) {

@@ -36,7 +36,8 @@ public class RedirectTarget implements Closeable {
 	private final String path;
 	private final String csrfToken;
 
-	private Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>"); // TODO: allow customization with custom html or redirect
+	private Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>");
+	private Response errorResponse = Response.html(Response.Status.BAD_REQUEST, "<html><body>Error</body></html>");
 
 	private RedirectTarget(ServerSocketChannel serverChannel, String path) {
 		this.serverChannel = serverChannel;
@@ -91,6 +92,14 @@ public class RedirectTarget implements Closeable {
 		}
 	}
 
+	public void setSuccessResponse(Response successResponse) {
+		this.successResponse = successResponse;
+	}
+
+	public void setErrorResponse(Response errorResponse) {
+		this.errorResponse = errorResponse;
+	}
+
 	public URI getRedirectUri() {
 		try {
 			// use 127.0.0.1, not "localhost", see https://datatracker.ietf.org/doc/html/rfc8252#section-8.3
@@ -135,8 +144,9 @@ public class RedirectTarget implements Closeable {
 				Response.empty(Response.Status.BAD_REQUEST).write(writer);
 				throw new IOException("Missing or invalid state token");
 			} else if (params.containsKey("error")) {
-				var html = "<html><body>" + params.get("error") + "</body></html>";
-				Response.html(Response.Status.OK, html).write(writer);
+//				var html = "<html><body>" + params.get("error") + "</body></html>";
+//				Response.html(Response.Status.OK, html).write(writer);
+				errorResponse.write(writer); // TODO insert error code?
 				throw new IOException("Authorization failed"); // TODO more specific exception containing the error code
 			} else if (params.containsKey("code")) {
 				successResponse.write(writer);

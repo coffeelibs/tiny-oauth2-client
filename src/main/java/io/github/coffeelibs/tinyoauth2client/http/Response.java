@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
 
-interface Response {
+public interface Response {
 
 	void write(Writer writer) throws IOException;
 

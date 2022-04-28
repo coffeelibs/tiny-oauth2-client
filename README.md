@@ -33,6 +33,6 @@ The `authorize(...)` method optionally allows you to specify:
 ## Why this library?
 
 * Often you just need to authorize your client and nothing more. Most OAuth2 libraries try to do a lot more
-* Nano-tiny-minuscule attack surface, since this doesn't contain any JOSE/JWT signature code, nor a fully-fleged web server
+* Nano-tiny-minuscule attack surface, since this doesn't contain any JOSE/JWT signature code, nor a fully-fledged web server
 * Focus is strictly on the authorization flow. Use any library for dealing with the tokens, you like.
 * Modular jar, exposing only one single public API. No need to read docs, you can't do anything wrong.

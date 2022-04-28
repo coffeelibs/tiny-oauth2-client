@@ -16,6 +16,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Objects;
 
 /**
  * A TCP connector to deal with the redirect response. We only listen for the expected response,
@@ -93,11 +94,11 @@ public class RedirectTarget implements Closeable {
 	}
 
 	public void setSuccessResponse(Response successResponse) {
-		this.successResponse = successResponse;
+		this.successResponse = Objects.requireNonNull(successResponse);
 	}
 
 	public void setErrorResponse(Response errorResponse) {
-		this.errorResponse = errorResponse;
+		this.errorResponse = Objects.requireNonNull(errorResponse);
 	}
 
 	public URI getRedirectUri() {

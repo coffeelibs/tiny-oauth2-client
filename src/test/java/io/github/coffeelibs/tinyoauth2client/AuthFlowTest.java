@@ -60,7 +60,7 @@ public class AuthFlowTest {
 		@BeforeEach
 		@SuppressWarnings({"unchecked"})
 		public void setup() throws IOException {
-			authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
+			authEndpoint = URI.create("https://login.example.com/");
 			redirectTarget = Mockito.mock(RedirectTarget.class);
 			redirectTargetClass = Mockito.mockStatic(RedirectTarget.class);
 			redirectTargetClass.when(() -> RedirectTarget.start(Mockito.any(), Mockito.any())).thenReturn(redirectTarget);
@@ -145,7 +145,26 @@ public class AuthFlowTest {
 		}
 
 		@Test
-		@DisplayName("authorize(...) succeeds if browser redirects to URI")
+		@DisplayName("authorize(...) with existing query string in authorization endpoint")
+		public void testAuthorizeWithExistingQueryParams() throws IOException {
+			authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
+			var authFlow = AuthFlow.asClient("my-client");
+
+			var result = authFlow.authorize(authEndpoint, browser);
+
+			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
+			var browsedUriCaptor = ArgumentCaptor.forClass(URI.class);
+			Mockito.verify(browser).accept(browsedUriCaptor.capture());
+			var browsedUri = browsedUriCaptor.getValue();
+			Assertions.assertNotNull(browsedUri);
+			Assertions.assertNotNull(browsedUri.getRawQuery());
+			var queryParams = URIUtil.parseQueryString(browsedUri.getRawQuery());
+			Assertions.assertEquals("existing-value", queryParams.get("existing_param"));
+			Assertions.assertEquals("code", queryParams.get("response_type"));
+		}
+
+		@Test
+		@DisplayName("authorize(...) with custom scopes")
 		public void testAuthorize() throws IOException {
 			var authFlow = AuthFlow.asClient("my-client");
 
@@ -158,7 +177,6 @@ public class AuthFlowTest {
 			Assertions.assertNotNull(browsedUri);
 			Assertions.assertNotNull(browsedUri.getRawQuery());
 			var queryParams = URIUtil.parseQueryString(browsedUri.getRawQuery());
-			Assertions.assertEquals("existing-value", queryParams.get("existing_param"));
 			Assertions.assertEquals(authFlow.clientId, queryParams.get("client_id"));
 			Assertions.assertEquals("code", queryParams.get("response_type"));
 			Assertions.assertEquals(redirectTarget.getCsrfToken(), queryParams.get("state"));

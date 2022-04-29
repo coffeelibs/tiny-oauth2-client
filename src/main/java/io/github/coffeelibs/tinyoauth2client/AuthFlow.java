@@ -3,6 +3,7 @@ package io.github.coffeelibs.tinyoauth2client;
 import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
 import io.github.coffeelibs.tinyoauth2client.http.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.VisibleForTesting;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749">RFC 6749</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a>
  */
+@ApiStatus.Experimental
 public class AuthFlow {
 
 	@VisibleForTesting

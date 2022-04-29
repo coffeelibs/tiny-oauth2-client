@@ -5,15 +5,11 @@ import org.jetbrains.annotations.Blocking;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * An OAuth2 <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.1">public client</a> capable of making requests to a token endpoint.
@@ -67,7 +63,7 @@ public class TinyOAuth2Client {
 		));
 		var request = HttpRequest.newBuilder(tokenEndpoint) //
 				.header("Content-Type", "application/x-www-form-urlencoded") //
-				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString())) //
+				.POST(HttpRequest.BodyPublishers.ofString(requestBody)) //
 				.build();
 		HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 		if (response.statusCode() == 200) {

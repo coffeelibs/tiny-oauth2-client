@@ -1,6 +1,7 @@
 package io.github.coffeelibs.tinyoauth2client.http;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.CharArrayWriter;
@@ -10,6 +11,19 @@ import java.net.URI;
 public class RedirectResponseTest {
 
 	@Test
+	@DisplayName("constructor throws NPE when status is null")
+	public void testNullBody() {
+		Assertions.assertThrows(NullPointerException.class, () -> new RedirectResponse(Response.Status.SEE_OTHER, null));
+	}
+
+	@Test
+	@DisplayName("constructor throws NPE when status is null")
+	public void testNullStatus() {
+		Assertions.assertThrows(NullPointerException.class, () -> new RedirectResponse(null, URI.create("http://google.com")));
+	}
+
+	@Test
+	@DisplayName("write() writes expected response")
 	public void testWrite() throws IOException {
 		var response = new RedirectResponse(Response.Status.SEE_OTHER, URI.create("http://google.com"));
 		var writer = new CharArrayWriter();

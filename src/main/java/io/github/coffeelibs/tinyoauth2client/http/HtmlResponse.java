@@ -3,6 +3,7 @@ package io.github.coffeelibs.tinyoauth2client.http;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 class HtmlResponse implements Response {
 
@@ -10,8 +11,8 @@ class HtmlResponse implements Response {
 	private final String body;
 
 	public HtmlResponse(Status status, String body) {
-		this.status = status;
-		this.body = body;
+		this.status = Objects.requireNonNull(status);
+		this.body = Objects.requireNonNull(body);
 	}
 
 	@Override

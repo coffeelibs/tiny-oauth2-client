@@ -3,6 +3,7 @@ package io.github.coffeelibs.tinyoauth2client.http;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
+import java.util.Objects;
 
 class RedirectResponse implements Response {
 
@@ -10,8 +11,8 @@ class RedirectResponse implements Response {
 	private URI target;
 
 	public RedirectResponse(Status status, URI target) {
-		this.status = status;
-		this.target = target;
+		this.status = Objects.requireNonNull(status);
+		this.target = Objects.requireNonNull(target);
 	}
 
 	@Override

@@ -190,6 +190,84 @@ public class AuthFlowTest {
 	}
 
 	@Nested
+	@DisplayName("refresh(...)")
+	public class RefreshTokens {
+
+		private AuthFlow authFlow;
+		private HttpClient httpClient;
+		private HttpResponse<String> httpRespone;
+		private MockedStatic<HttpClient> httpClientClass;
+
+		@BeforeEach
+		@SuppressWarnings("unchecked")
+		public void setup() throws IOException, InterruptedException {
+			authFlow = AuthFlow.asClient("my-client");
+
+			httpClient = Mockito.mock(HttpClient.class);
+			httpRespone = Mockito.mock(HttpResponse.class);
+			httpClientClass = Mockito.mockStatic(HttpClient.class);
+
+			httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
+			Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
+		}
+
+		@AfterEach
+		public void tearDown() {
+			httpClientClass.close();
+		}
+
+		@Test
+		@DisplayName("body contains all params")
+		public void testRefresh() throws IOException, InterruptedException {
+			Mockito.doReturn(200).when(httpRespone).statusCode();
+			var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+			var bodyCaptor = ArgumentCaptor.forClass(String.class);
+			var bodyPublisher = Mockito.mock(HttpRequest.BodyPublisher.class);
+			try (var bodyPublishersClass = Mockito.mockStatic(HttpRequest.BodyPublishers.class)) {
+				bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(bodyPublisher);
+
+				authFlow.refresh(tokenEndpoint, "r3fr3sh70k3n", "offline_access");
+
+				bodyPublishersClass.verify(() -> HttpRequest.BodyPublishers.ofString(bodyCaptor.capture()));
+			}
+			var body = bodyCaptor.getValue();
+			var params = URIUtil.parseQueryString(body);
+			Assertions.assertEquals("refresh_token", params.get("grant_type"));
+			Assertions.assertEquals(authFlow.clientId, params.get("client_id"));
+			Assertions.assertEquals("r3fr3sh70k3n", params.get("refresh_token"));
+			Assertions.assertEquals("offline_access", params.get("scope"));
+		}
+
+		@Test
+		@DisplayName("send POST request to token endpoint")
+		public void testGetAccessToken200() throws IOException, InterruptedException {
+			Mockito.doReturn(200).when(httpRespone).statusCode();
+			Mockito.doReturn("BODY").when(httpRespone).body();
+			var requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+			var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+
+			var result = authFlow.refresh(tokenEndpoint, "r3fr3sh70k3n");
+
+			Assertions.assertEquals("BODY", result);
+			Mockito.verify(httpClient).send(requestCaptor.capture(), Mockito.any());
+			var request = requestCaptor.getValue();
+			Assertions.assertSame(tokenEndpoint, request.uri());
+			Assertions.assertEquals("POST", request.method());
+			Assertions.assertEquals("application/x-www-form-urlencoded", request.headers().firstValue("Content-Type").orElse(null));
+		}
+
+		@Test
+		@DisplayName("non-success response from token endpoint leads to IOException")
+		public void testGetAccessToken404() {
+			Mockito.doReturn(404).when(httpRespone).statusCode();
+			var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+
+			Assertions.assertThrows(IOException.class, () -> authFlow.refresh(tokenEndpoint, "r3fr3sh70k3n"));
+		}
+
+	}
+
+	@Nested
 	@DisplayName("After receiving auth code")
 	public class WithAuthCode {
 
@@ -224,9 +302,9 @@ public class AuthFlowTest {
 			Mockito.doReturn(200).when(httpRespone).statusCode();
 			var tokenEndpoint = URI.create("http://example.com/oauth2/token");
 			var bodyCaptor = ArgumentCaptor.forClass(String.class);
-			var replacementBody = HttpRequest.BodyPublishers.ofString("foo");
+			var bodyPublisher = Mockito.mock(HttpRequest.BodyPublisher.class);
 			try (var bodyPublishersClass = Mockito.mockStatic(HttpRequest.BodyPublishers.class)) {
-				bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(replacementBody);
+				bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(bodyPublisher);
 
 				authFlowWithCode.getAccessToken(tokenEndpoint);
 

@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
 
 /**
  * Simple OAuth 2.0 Authentication Code Flow with {@link PKCE}.
- * <p>
  *
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8252">RFC 8252</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749">RFC 6749</a>
@@ -32,27 +32,21 @@ import java.util.stream.Collectors;
 @ApiStatus.Experimental
 public class AuthFlow {
 
+
 	@VisibleForTesting
-	final String clientId;
+	final TinyOAuth2Client client;
+	@VisibleForTesting
+	final URI authEndpoint;
 	@VisibleForTesting
 	final PKCE pkce;
 
 	private Response successResponse;
 	private Response errorResponse;
 
-	private AuthFlow(String clientId) {
-		this.clientId = clientId;
-		this.pkce = new PKCE();
-	}
-
-	/**
-	 * Initializes a new Authentication Code Flow for the given {@code clientId}
-	 *
-	 * @param clientId Public <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.2">Client Identifier</a>
-	 * @return A new Authentication Flow
-	 */
-	public static AuthFlow asClient(String clientId) {
-		return new AuthFlow(clientId);
+	AuthFlow(TinyOAuth2Client client, URI authEndpoint, PKCE pkce) {
+		this.client = Objects.requireNonNull(client);
+		this.authEndpoint = Objects.requireNonNull(authEndpoint);
+		this.pkce = Objects.requireNonNull(pkce);
 	}
 
 	/**
@@ -107,23 +101,21 @@ public class AuthFlow {
 	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
 	 *
-	 * @param authEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1">Authorization Endpoint</a>
 	 * @param browser      An async callback that opens a web browser with the URI it consumes
 	 * @param scopes       The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
 	 * @return The authentication flow that is now in possession of an authorization code
 	 * @throws IOException In case of I/O errors during communication between browser and this application
-	 * @see #authorize(URI, Consumer, Set, String, int...)
+	 * @see #authorize(Consumer, Set, String, int...)
 	 */
 	@Blocking
-	public AuthFlowWithCode authorize(URI authEndpoint, Consumer<URI> browser, String... scopes) throws IOException {
-		return authorize(authEndpoint, browser, Set.of(scopes), "/" + RandomUtil.randomToken(16));
+	public AuthFlowWithCode authorize(Consumer<URI> browser, String... scopes) throws IOException {
+		return authorize(browser, Set.of(scopes), "/" + RandomUtil.randomToken(16));
 	}
 
 	/**
 	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
 	 *
-	 * @param authEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1">Authorization Endpoint</a>
 	 * @param browser      An async callback that opens a web browser with the URI it consumes
 	 * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
 	 * @param path         The path to use in the redirect URI
@@ -133,7 +125,7 @@ public class AuthFlow {
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1">RFC 6749 Section 4.1.1: Authorization Request</a>
 	 */
 	@Blocking
-	public AuthFlowWithCode authorize(URI authEndpoint, Consumer<URI> browser, Set<String> scopes, String path, int... ports) throws IOException {
+	public AuthFlowWithCode authorize(Consumer<URI> browser, Set<String> scopes, String path, int... ports) throws IOException {
 		try (var redirectTarget = RedirectTarget.start(path, ports)) {
 			if (successResponse != null) {
 				redirectTarget.setSuccessResponse(successResponse);
@@ -149,7 +141,7 @@ public class AuthFlow {
 				queryString.append('&');
 			}
 			queryString.append("response_type=code");
-			queryString.append("&client_id=").append(clientId);
+			queryString.append("&client_id=").append(client.clientId);
 			queryString.append("&state=").append(redirectTarget.getCsrfToken());
 			queryString.append("&code_challenge=").append(pkce.challenge);
 			queryString.append("&code_challenge_method=").append(PKCE.METHOD);
@@ -163,39 +155,6 @@ public class AuthFlow {
 			ForkJoinPool.commonPool().execute(() -> browser.accept(authUri));
 			var code = redirectTarget.receive();
 			return new AuthFlowWithCode(encodedRedirectUri, code);
-		}
-	}
-
-	/**
-	 * Refreshes an access token using the given {@code refreshToken}.
-	 *
-	 * @param tokenEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.2">Token Endpoint</a>
-	 * @param refreshToken The refresh token
-	 * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-	 * @throws IOException          In case of I/O errors when communicating with the token endpoint
-	 * @throws InterruptedException When this thread is interrupted before a response is received
-	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-6">RFC 6749 Section 6: Refreshing an Access Token</a>
-	 */
-	@Blocking
-	public String refresh(URI tokenEndpoint, String refreshToken, String... scopes) throws IOException, InterruptedException {
-		StringBuilder requestBody = new StringBuilder();
-		requestBody.append("grant_type=refresh_token");
-		requestBody.append("&client_id=").append(clientId);
-		requestBody.append("&refresh_token=").append(URLEncoder.encode(refreshToken, StandardCharsets.US_ASCII));
-		if (scopes.length > 0) {
-			requestBody.append("&scope=");
-			requestBody.append(Arrays.stream(scopes).map(s -> URLEncoder.encode(s, StandardCharsets.US_ASCII)).collect(Collectors.joining("+")));
-		}
-		var request = HttpRequest.newBuilder(tokenEndpoint) //
-				.header("Content-Type", "application/x-www-form-urlencoded") //
-				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString())) //
-				.build();
-		HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-		if (response.statusCode() == 200) {
-			return response.body();
-		} else {
-			throw new IOException("Unexpected HTTP response code " + response.statusCode());
 		}
 	}
 
@@ -215,21 +174,20 @@ public class AuthFlow {
 		/**
 		 * Requests a access/refresh token from the given {@code tokenEndpoint}.
 		 *
-		 * @param tokenEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.2">Token Endpoint</a>
 		 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 		 * @throws IOException          In case of I/O errors when communicating with the token endpoint
 		 * @throws InterruptedException When this thread is interrupted before a response is received
+		 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">RFC 6749 Section 4.1.3: Access Token Request</a>
 		 */
 		@Blocking
-		public String getAccessToken(URI tokenEndpoint) throws IOException, InterruptedException {
-			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
+		public String getAccessToken() throws IOException, InterruptedException {
 			StringBuilder requestBody = new StringBuilder();
 			requestBody.append("grant_type=authorization_code");
-			requestBody.append("&client_id=").append(clientId);
+			requestBody.append("&client_id=").append(client.clientId);
 			requestBody.append("&code_verifier=").append(pkce.verifier);
 			requestBody.append("&code=").append(authorizationCode);
 			requestBody.append("&redirect_uri=").append(encodedRedirectUri);
-			var request = HttpRequest.newBuilder(tokenEndpoint) //
+			var request = HttpRequest.newBuilder(client.tokenEndpoint) //
 					.header("Content-Type", "application/x-www-form-urlencoded") //
 					.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString())) //
 					.build();

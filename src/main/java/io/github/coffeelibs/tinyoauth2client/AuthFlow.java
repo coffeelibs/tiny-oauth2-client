@@ -3,6 +3,7 @@ package io.github.coffeelibs.tinyoauth2client;
 import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
 import io.github.coffeelibs.tinyoauth2client.http.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
+import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.Contract;
@@ -10,17 +11,14 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Simple OAuth 2.0 Authentication Code Flow with {@link PKCE}.
@@ -101,8 +99,8 @@ public class AuthFlow {
 	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
 	 *
-	 * @param browser      An async callback that opens a web browser with the URI it consumes
-	 * @param scopes       The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+	 * @param browser An async callback that opens a web browser with the URI it consumes
+	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
 	 * @return The authentication flow that is now in possession of an authorization code
 	 * @throws IOException In case of I/O errors during communication between browser and this application
 	 * @see #authorize(Consumer, Set, String, int...)
@@ -116,10 +114,10 @@ public class AuthFlow {
 	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
 	 *
-	 * @param browser      An async callback that opens a web browser with the URI it consumes
-	 * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @param path         The path to use in the redirect URI
-	 * @param ports        TCP port(s) to attempt to bind to and use in the loopback redirect URI
+	 * @param browser An async callback that opens a web browser with the URI it consumes
+	 * @param scopes  The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+	 * @param path    The path to use in the redirect URI
+	 * @param ports   TCP port(s) to attempt to bind to and use in the loopback redirect URI
 	 * @return The authentication flow that is now in possession of an authorization code
 	 * @throws IOException In case of I/O errors during communication between browser and this application
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1">RFC 6749 Section 4.1.1: Authorization Request</a>
@@ -133,28 +131,26 @@ public class AuthFlow {
 			if (errorResponse != null) {
 				redirectTarget.setErrorResponse(errorResponse);
 			}
-			var encodedRedirectUri = URLEncoder.encode(redirectTarget.getRedirectUri().toASCIIString(), StandardCharsets.US_ASCII);
+			var redirectUri = redirectTarget.getRedirectUri().toASCIIString();
 
-			StringBuilder queryString = new StringBuilder();
+			String queryString = "";
 			if (authEndpoint.getRawQuery() != null) {
-				queryString.append(authEndpoint.getRawQuery());
-				queryString.append('&');
+				queryString = authEndpoint.getRawQuery() + "&";
 			}
-			queryString.append("response_type=code");
-			queryString.append("&client_id=").append(client.clientId);
-			queryString.append("&state=").append(redirectTarget.getCsrfToken());
-			queryString.append("&code_challenge=").append(pkce.challenge);
-			queryString.append("&code_challenge_method=").append(PKCE.METHOD);
-			queryString.append("&redirect_uri=").append(encodedRedirectUri);
-			if (!scopes.isEmpty()) {
-				queryString.append("&scope=");
-				queryString.append(scopes.stream().map(s -> URLEncoder.encode(s, StandardCharsets.US_ASCII)).collect(Collectors.joining("+")));
-			}
+			queryString += URIUtil.buildQueryString(Map.of( //
+					"response_type", "code", //
+					"client_id", client.clientId, //
+					"state", redirectTarget.getCsrfToken(), //
+					"code_challenge", pkce.challenge, //
+					"code_challenge_method", PKCE.METHOD, //
+					"redirect_uri", redirectTarget.getRedirectUri().toASCIIString(), //
+					"scope", String.join(" ", scopes)
+			));
 
 			var authUri = URI.create(authEndpoint.getScheme() + "://" + authEndpoint.getRawAuthority() + authEndpoint.getRawPath() + "?" + queryString);
 			ForkJoinPool.commonPool().execute(() -> browser.accept(authUri));
 			var code = redirectTarget.receive();
-			return new AuthFlowWithCode(encodedRedirectUri, code);
+			return new AuthFlowWithCode(redirectUri, code);
 		}
 	}
 
@@ -162,12 +158,12 @@ public class AuthFlow {
 	 * The successfully authenticated authentication flow, ready to retrieve an access token.
 	 */
 	public class AuthFlowWithCode {
-		private final String encodedRedirectUri;
+		private final String redirectUri;
 		private final String authorizationCode;
 
 		@VisibleForTesting
-		AuthFlowWithCode(String encodedRedirectUri, String authorizationCode) {
-			this.encodedRedirectUri = encodedRedirectUri;
+		AuthFlowWithCode(String redirectUri, String authorizationCode) {
+			this.redirectUri = redirectUri;
 			this.authorizationCode = authorizationCode;
 		}
 
@@ -181,12 +177,13 @@ public class AuthFlow {
 		 */
 		@Blocking
 		public String getAccessToken() throws IOException, InterruptedException {
-			StringBuilder requestBody = new StringBuilder();
-			requestBody.append("grant_type=authorization_code");
-			requestBody.append("&client_id=").append(client.clientId);
-			requestBody.append("&code_verifier=").append(pkce.verifier);
-			requestBody.append("&code=").append(authorizationCode);
-			requestBody.append("&redirect_uri=").append(encodedRedirectUri);
+			var requestBody = URIUtil.buildQueryString(Map.of( //
+					"grant_type", "authorization_code", //
+					"client_id", client.clientId, //
+					"code_verifier", pkce.verifier, //
+					"code", authorizationCode, //
+					"redirect_uri", redirectUri //
+			));
 			var request = HttpRequest.newBuilder(client.tokenEndpoint) //
 					.header("Content-Type", "application/x-www-form-urlencoded") //
 					.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString())) //

@@ -1,5 +1,6 @@
 package io.github.coffeelibs.tinyoauth2client;
 
+import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.Blocking;
 
 import java.io.IOException;
@@ -10,6 +11,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -57,14 +59,12 @@ public class TinyOAuth2Client {
 	 */
 	@Blocking
 	public String refresh(String refreshToken, String... scopes) throws IOException, InterruptedException {
-		StringBuilder requestBody = new StringBuilder();
-		requestBody.append("grant_type=refresh_token");
-		requestBody.append("&client_id=").append(clientId);
-		requestBody.append("&refresh_token=").append(URLEncoder.encode(refreshToken, StandardCharsets.US_ASCII));
-		if (scopes.length > 0) {
-			requestBody.append("&scope=");
-			requestBody.append(Arrays.stream(scopes).map(s -> URLEncoder.encode(s, StandardCharsets.US_ASCII)).collect(Collectors.joining("+")));
-		}
+		var requestBody = URIUtil.buildQueryString(Map.of(//
+				"grant_type", "refresh_token", //
+				"refresh_token", refreshToken, //
+				"client_id", clientId, //
+				"scope", String.join(" ", scopes)
+		));
 		var request = HttpRequest.newBuilder(tokenEndpoint) //
 				.header("Content-Type", "application/x-www-form-urlencoded") //
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString())) //

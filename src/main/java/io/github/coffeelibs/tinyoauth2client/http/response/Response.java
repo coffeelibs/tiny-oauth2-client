@@ -1,4 +1,6 @@
-package io.github.coffeelibs.tinyoauth2client.http;
+package io.github.coffeelibs.tinyoauth2client.http.response;
+
+import org.jetbrains.annotations.Contract;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -8,14 +10,33 @@ public interface Response {
 
 	void write(Writer writer) throws IOException;
 
+	/**
+	 *
+	 * @param status
+	 * @return
+	 */
+	@Contract("!null -> new")
 	static Response empty(Status status) {
 		return new EmptyResponse(status);
 	}
 
+	/**
+	 *
+	 * @param status
+	 * @param body content served with {@code Content-Type: text/html; charset=UTF-8}
+	 * @return A new response
+	 */
+	@Contract("!null, !null -> new")
 	static Response html(Status status, String body) {
 		return new HtmlResponse(status, body);
 	}
 
+	/**
+	 *
+	 * @param target URI of page to show
+	 * @return
+	 */
+	@Contract("!null -> new")
 	static Response redirect(URI target) {
 		return new RedirectResponse(Status.SEE_OTHER, target);
 	}

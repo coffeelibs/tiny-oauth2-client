@@ -1,7 +1,7 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
-import io.github.coffeelibs.tinyoauth2client.http.Response;
+import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.ApiStatus;
@@ -58,50 +58,26 @@ public class AuthFlow {
 	}
 
 	/**
-	 * HTML to display in the Resource Owner's user agent after successful authorization.
+	 * Response to send to the Resource Owner's user agent after successful authorization.
 	 *
-	 * @param html content served with {@code Content-Type: text/html; charset=UTF-8}
+	 * @param response The response to send
 	 * @return this
 	 */
-	@Contract("_ -> this")
-	public AuthFlow withSuccessHtml(String html) {
-		this.successResponse = Response.html(Response.Status.OK, html);
+	@Contract("!null -> this")
+	public AuthFlow setSuccessResponse(Response response) {
+		this.successResponse = Objects.requireNonNull(response);
 		return this;
 	}
 
 	/**
-	 * Where to redirect the Resource Owner's user agent after successful authorization.
+	 * Response to send to the Resource Owner's user agent after failed authorization.
 	 *
-	 * @param target URI of page to show
+	 * @param response The response to send
 	 * @return this
 	 */
-	@Contract("_ -> this")
-	public AuthFlow withSuccessRedirect(URI target) {
-		this.successResponse = Response.redirect(target);
-		return this;
-	}
-
-	/**
-	 * HTML to display in the Resource Owner's user agent after failed authorization.
-	 *
-	 * @param html content served with {@code Content-Type: text/html; charset=UTF-8}
-	 * @return this
-	 */
-	@Contract("_ -> this")
-	public AuthFlow withErrorHtml(String html) {
-		this.errorResponse = Response.html(Response.Status.OK, html);
-		return this;
-	}
-
-	/**
-	 * Where to redirect the Resource Owner's user agent after failed authorization.
-	 *
-	 * @param target URI of page to show
-	 * @return this
-	 */
-	@Contract("_ -> this")
-	public AuthFlow withErrorRedirect(URI target) {
-		this.errorResponse = Response.redirect(target);
+	@Contract("!null -> this")
+	public AuthFlow setErrorResponse(Response response) {
+		this.errorResponse = Objects.requireNonNull(response);
 		return this;
 	}
 

@@ -1,5 +1,6 @@
 package io.github.coffeelibs.tinyoauth2client.http;
 
+import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.Blocking;

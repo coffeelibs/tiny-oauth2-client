@@ -257,7 +257,6 @@ public class RedirectTargetTest {
 					redirect.receive();
 				} catch (IOException e) {
 					exception.set(e);
-					throw new UncheckedIOException(e);
 				} finally {
 					threadExited.countDown();
 				}

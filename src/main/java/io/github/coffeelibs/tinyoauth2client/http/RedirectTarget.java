@@ -31,7 +31,7 @@ import java.util.Objects;
  */
 public class RedirectTarget implements Closeable {
 
-	private static final InetAddress LOOPBACK_ADDR = InetAddress.getLoopbackAddress();
+	static final InetAddress LOOPBACK_ADDR = InetAddress.getLoopbackAddress();
 
 	private final ServerSocketChannel serverChannel;
 	private final String path;

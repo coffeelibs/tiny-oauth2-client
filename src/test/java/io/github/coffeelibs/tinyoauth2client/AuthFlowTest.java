@@ -18,34 +18,90 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 public class AuthFlowTest {
 
-	@Test
-	@SuppressWarnings("unchecked")
-	@DisplayName("test conventience authorize(browser)")
-	public void testConvenienceAuthorize() throws IOException {
-		var authFlow = Mockito.mock(AuthFlow.class);
-		Consumer<URI> browser = Mockito.mock(Consumer.class);
-		Mockito.doCallRealMethod().when(authFlow).authorize(browser);
+	private final TinyOAuth2Client client = new TinyOAuth2Client("my-client", URI.create("http://example.com/oauth2/token"));
+	private final URI authEndpoint = URI.create("https://login.example.com/");
+	private final PKCE pkce = new PKCE();
 
-		authFlow.authorize(browser);
+	@Nested
+	@DisplayName("Configure")
+	public class TestSetters {
 
-		Mockito.verify(authFlow).authorize(Mockito.same(browser), Mockito.eq(Set.of()), Mockito.anyString());
+		private final AuthFlow authFlow = new AuthFlow(client, authEndpoint, pkce);
+
+		@Nested
+		@DisplayName("test rediectPort")
+		public class TestRedirectPort {
+
+			@Test
+			@DisplayName("withLocalPorts(AuthFlow.SYSTEM_ASSIGNED_PORT)")
+			public void testWithSystemAssignedLocalPort() {
+				Assertions.assertDoesNotThrow(() -> authFlow.setRedirectPort(AuthFlow.SYSTEM_ASSIGNED_PORT));
+
+				Assertions.assertArrayEquals(new int[]{0}, authFlow.redirectPorts);
+			}
+
+			@Test
+			@DisplayName("withLocalPorts(null)")
+			public void testWithNullLocalPort() {
+				Assertions.assertThrows(NullPointerException.class, () -> authFlow.setRedirectPort((int[]) null));
+			}
+
+			@Test
+			@DisplayName("withLocalPorts(1234, 5678)")
+			public void testWithFixedLocalPorts() {
+				Assertions.assertDoesNotThrow(() -> authFlow.setRedirectPort(1234, 5678));
+
+				Assertions.assertArrayEquals(new int[]{1234, 5678}, authFlow.redirectPorts);
+			}
+
+		}
+
+		@Nested
+		@DisplayName("test redirectPath")
+		public class TestRedirectPath {
+
+			@Test
+			@DisplayName("default redirectPath")
+			public void testDefaultLocalPath() {
+				Assertions.assertTrue(authFlow.redirectPath.matches("/[\\w-]{16}"));
+			}
+
+			@Test
+			@DisplayName("withLocalPath(null)")
+			public void testWithNullLocalPath() {
+				//noinspection ConstantConditions
+				Assertions.assertThrows(NullPointerException.class, () -> authFlow.setRedirectPath(null));
+			}
+
+			@Test
+			@DisplayName("withLocalPath(\"foo\")")
+			public void testWithRelativeLocalPath() {
+				Assertions.assertThrows(IllegalArgumentException.class, () -> authFlow.setRedirectPath("foo"));
+			}
+
+			@Test
+			@DisplayName("withLocalPath(\"/foo\")")
+			public void testWithAbsoluteLocalPath() {
+				Assertions.assertDoesNotThrow(() -> authFlow.setRedirectPath("/foo"));
+
+				Assertions.assertEquals("/foo", authFlow.redirectPath);
+			}
+		}
+
 	}
 
 	@Nested
 	@SuppressWarnings("resource")
 	@Timeout(1)
-	@DisplayName("With mocked redirect target")
+	@DisplayName("With configured AuthFlow")
 	public class WithMockedRedirectTarget {
 
-		private TinyOAuth2Client client;
-		private URI authEndpoint;
-		private PKCE pkce;
+		private AuthFlow authFlow;
 		private RedirectTarget redirectTarget;
 		private MockedStatic<RedirectTarget> redirectTargetClass;
 		private Consumer<URI> browser;
@@ -53,9 +109,7 @@ public class AuthFlowTest {
 		@BeforeEach
 		@SuppressWarnings({"unchecked"})
 		public void setup() throws IOException {
-			client = new TinyOAuth2Client("my-client", URI.create("http://example.com/oauth2/token"));
-			authEndpoint = URI.create("https://login.example.com/");
-			pkce = new PKCE();
+			authFlow = new AuthFlow(client, authEndpoint, pkce);
 			redirectTarget = Mockito.mock(RedirectTarget.class);
 			redirectTargetClass = Mockito.mockStatic(RedirectTarget.class);
 			redirectTargetClass.when(() -> RedirectTarget.start(Mockito.any(), Mockito.any())).thenReturn(redirectTarget);
@@ -82,67 +136,41 @@ public class AuthFlowTest {
 		@Test
 		@DisplayName("authorize(...) with random path")
 		public void testAuthorizeWithRandomPath() {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce);
-
 			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
 
-			redirectTargetClass.verify(() -> RedirectTarget.start(Mockito.matches("/[0-9a-zA-Z_-]{4,}")));
+			redirectTargetClass.verify(() -> RedirectTarget.start(Mockito.matches("/[\\w-]{16}"), Mockito.any()));
 		}
 
 		@Test
 		@DisplayName("authorize(...) with fixed path and port")
 		public void testAuthorizeWithFixedPathAndPorts() {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce);
+			authFlow.setRedirectPath("/foo").setRedirectPort(1234, 5678);
 
-			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser, Set.of("scope1", "scope2"), "/foo", 1234, 5678));
+			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
 
 			redirectTargetClass.verify(() -> RedirectTarget.start("/foo", 1234, 5678));
 		}
 
 		@Test
-		@DisplayName("withSuccessHtml(...) gets applied during authorize(...)")
-		public void testWithSuccessHtml() {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce).withSuccessHtml("test");
-
+		@DisplayName("authorize(...) calls redirectTarget.setSuccessResponse(...)")
+		public void testConfigureSuccessResponse() {
 			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
 
-			Mockito.verify(redirectTarget).setSuccessResponse(Mockito.notNull());
+			Mockito.verify(redirectTarget).setSuccessResponse(authFlow.successResponse);
 		}
 
 		@Test
-		@DisplayName("withSuccessRedirect(...) gets applied during authorize(...)")
-		public void testWithSuccessRedirect() {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce).withSuccessRedirect(URI.create("https://example.com"));
-
+		@DisplayName("authorize(...) calls redirectTarget.setErrorResponse(...)")
+		public void testConfigureErrorResponse() {
 			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
 
-			Mockito.verify(redirectTarget).setSuccessResponse(Mockito.notNull());
-		}
-
-		@Test
-		@DisplayName("withErrorRedirect(...) gets applied during authorize(...)")
-		public void testWithErrorRedirect() {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce).withErrorRedirect(URI.create("https://example.com"));
-
-			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
-
-			Mockito.verify(redirectTarget).setErrorResponse(Mockito.notNull());
-		}
-
-		@Test
-		@DisplayName("withErrorHtml(...) gets applied during authorize(...)")
-		public void testWithErrorHtml() {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce).withErrorHtml("test");
-
-			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
-
-			Mockito.verify(redirectTarget).setErrorResponse(Mockito.notNull());
+			Mockito.verify(redirectTarget).setErrorResponse(authFlow.errorResponse);
 		}
 
 		@Test
 		@DisplayName("authorize(...) with existing query string in authorization endpoint")
 		public void testAuthorizeWithExistingQueryParams() throws IOException {
-			authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
+			var authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
 			var authFlow = new AuthFlow(client, authEndpoint, pkce);
 
 			var result = authFlow.authorize(browser);
@@ -161,8 +189,6 @@ public class AuthFlowTest {
 		@Test
 		@DisplayName("authorize(...) with custom scopes")
 		public void testAuthorize() throws IOException {
-			var authFlow = new AuthFlow(client, authEndpoint, pkce);
-
 			var result = authFlow.authorize(browser, "scope1", "scope2");
 
 			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
@@ -186,7 +212,6 @@ public class AuthFlowTest {
 		@DisplayName("After receiving auth code")
 		public class WithAuthCode {
 
-			private AuthFlow authFlow;
 			private AuthFlow.AuthFlowWithCode authFlowWithCode;
 			private HttpClient httpClient;
 			private HttpResponse<String> httpRespone;
@@ -195,7 +220,6 @@ public class AuthFlowTest {
 			@BeforeEach
 			@SuppressWarnings("unchecked")
 			public void setup() throws IOException, InterruptedException {
-				authFlow = new AuthFlow(client, authEndpoint, pkce);
 				authFlowWithCode = authFlow.new AuthFlowWithCode("redirect-uri", "auth-code");
 
 				httpClient = Mockito.mock(HttpClient.class);
@@ -254,7 +278,6 @@ public class AuthFlowTest {
 			@DisplayName("non-success response from token endpoint leads to IOException")
 			public void testGetAccessToken404() {
 				Mockito.doReturn(404).when(httpRespone).statusCode();
-				var tokenEndpoint = URI.create("http://example.com/oauth2/token");
 
 				Assertions.assertThrows(IOException.class, () -> authFlowWithCode.getAccessToken());
 			}

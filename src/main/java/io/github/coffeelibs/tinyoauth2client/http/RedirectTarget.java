@@ -38,8 +38,8 @@ public class RedirectTarget implements Closeable {
 	private final String path;
 	private final String csrfToken;
 
-	private Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>");
-	private Response errorResponse = Response.html(Response.Status.OK, "<html><body>Error</body></html>");
+	private Response successResponse = Response.empty(Response.Status.OK);
+	private Response errorResponse = Response.empty(Response.Status.OK);
 
 	private RedirectTarget(ServerSocketChannel serverChannel, String path) {
 		this.serverChannel = serverChannel;

@@ -16,13 +16,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 /**
  * Simple OAuth 2.0 Authentication Code Flow with {@link PKCE}.
  *
+ * @see TinyOAuth2Client#authFlow(URI)
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8252">RFC 8252</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749">RFC 6749</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a>
@@ -30,6 +30,10 @@ import java.util.function.Consumer;
 @ApiStatus.Experimental
 public class AuthFlow {
 
+	/**
+	 * Use a system-assigned port number
+	 */
+	public static int[] SYSTEM_ASSIGNED_PORT = {0};
 
 	@VisibleForTesting
 	final TinyOAuth2Client client;
@@ -38,8 +42,14 @@ public class AuthFlow {
 	@VisibleForTesting
 	final PKCE pkce;
 
-	private Response successResponse;
-	private Response errorResponse;
+	@VisibleForTesting
+	String redirectPath = "/" + RandomUtil.randomToken(16);
+	@VisibleForTesting
+	int[] redirectPorts = SYSTEM_ASSIGNED_PORT;
+	@VisibleForTesting
+	Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>");
+	@VisibleForTesting
+	Response errorResponse = Response.html(Response.Status.OK, "<html><body>Error</body></html>");
 
 	AuthFlow(TinyOAuth2Client client, URI authEndpoint, PKCE pkce) {
 		this.client = Objects.requireNonNull(client);
@@ -96,18 +106,36 @@ public class AuthFlow {
 	}
 
 	/**
-	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
+	 * Sets the path, which this app will listen to and which will be used in the {@code redirect_uri}.
+	 * <p>
+	 * Defaults to a random path, which may not be supported by all Authorization Servers.
 	 *
-	 * @param browser An async callback that opens a web browser with the URI it consumes
-	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @return The authentication flow that is now in possession of an authorization code
-	 * @throws IOException In case of I/O errors during communication between browser and this application
-	 * @see #authorize(Consumer, Set, String, int...)
+	 * @param path Path component of the URI used as <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.2">Redirection Endpoint</a>
+	 * @return this
 	 */
-	@Blocking
-	public AuthFlowWithCode authorize(Consumer<URI> browser, String... scopes) throws IOException {
-		return authorize(browser, Set.of(scopes), "/" + RandomUtil.randomToken(16));
+	@Contract("!null -> this")
+	public AuthFlow setRedirectPath(String path) {
+		if (!path.startsWith("/")) {
+			throw new IllegalArgumentException("Path should be absolute");
+		}
+		this.redirectPath = path;
+		return this;
+	}
+
+	/**
+	 * Sets the port number, which this app will listen on and which will be used in the {@code redirect_uri}.
+	 * <p>
+	 * Defaults to an unpredictable {@link #SYSTEM_ASSIGNED_PORT}, which may not be supported by all Authorization Servers.
+	 *
+	 * @param ports One or many TCP port(s) in to attempt to bind to and use in the loopback redirect URI.
+	 *              If multiple ports are defined, they will be used as fallbacks in case the preceding port is
+	 *              already bound.
+	 * @return this
+	 */
+	@Contract("!null -> this")
+	public AuthFlow setRedirectPort(int... ports) {
+		this.redirectPorts = Objects.requireNonNull(ports);
+		return this;
 	}
 
 	/**
@@ -115,26 +143,21 @@ public class AuthFlow {
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
 	 *
 	 * @param browser An async callback that opens a web browser with the URI it consumes
-	 * @param scopes  The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @param path    The path to use in the redirect URI
-	 * @param ports   TCP port(s) to attempt to bind to and use in the loopback redirect URI
+	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
 	 * @return The authentication flow that is now in possession of an authorization code
 	 * @throws IOException In case of I/O errors during communication between browser and this application
-	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1">RFC 6749 Section 4.1.1: Authorization Request</a>
 	 */
 	@Blocking
-	public AuthFlowWithCode authorize(Consumer<URI> browser, Set<String> scopes, String path, int... ports) throws IOException {
-		try (var redirectTarget = RedirectTarget.start(path, ports)) {
-			if (successResponse != null) {
-				redirectTarget.setSuccessResponse(successResponse);
-			}
-			if (errorResponse != null) {
-				redirectTarget.setErrorResponse(errorResponse);
-			}
+	public AuthFlowWithCode authorize(Consumer<URI> browser, String... scopes) throws IOException {
+		try (var redirectTarget = RedirectTarget.start(redirectPath, redirectPorts)) {
+			redirectTarget.setSuccessResponse(successResponse);
+			redirectTarget.setErrorResponse(errorResponse);
 			var redirectUri = redirectTarget.getRedirectUri().toASCIIString();
 
 			String queryString = "";
 			if (authEndpoint.getRawQuery() != null) {
+				// query component [...] MUST be retained when adding additional query parameters
+				// as per https://datatracker.ietf.org/doc/html/rfc6749#section-3.1
 				queryString = authEndpoint.getRawQuery() + "&";
 			}
 			queryString += URIUtil.buildQueryString(Map.of( //

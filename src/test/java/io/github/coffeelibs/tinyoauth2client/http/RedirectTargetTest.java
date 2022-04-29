@@ -86,6 +86,20 @@ public class RedirectTargetTest {
 	}
 
 	@Test
+	@DisplayName("tryBind(...) uses fallback port")
+	public void testTryBind() throws IOException {
+		var ch = Mockito.mock(ServerSocketChannel.class);
+		Mockito.doThrow(new AlreadyBoundException()) // first attempt fails
+				.doThrow(new AlreadyBoundException()) // second attempt fails
+				.doReturn(ch) // third attempt succeeds
+				.when(ch).bind(Mockito.any());
+
+		Assertions.assertDoesNotThrow(() -> RedirectTarget.tryBind(ch, 17, 23, 42));
+
+		Mockito.verify(ch).bind(new InetSocketAddress(RedirectTarget.LOOPBACK_ADDR, 42));
+	}
+
+	@Test
 	@DisplayName("bind() to system-assigned port")
 	public void testBindToSystemAssignedPort() throws IOException {
 		var ch = Mockito.mock(ServerSocketChannel.class);
@@ -257,7 +271,6 @@ public class RedirectTargetTest {
 					redirect.receive();
 				} catch (IOException e) {
 					exception.set(e);
-					throw new UncheckedIOException(e);
 				} finally {
 					threadExited.countDown();
 				}

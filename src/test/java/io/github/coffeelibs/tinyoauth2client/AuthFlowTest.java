@@ -10,6 +10,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -19,8 +22,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 public class AuthFlowTest {
 
@@ -151,6 +156,35 @@ public class AuthFlowTest {
 
 	}
 
+	@DisplayName("test buildAuthUri(...)")
+	@ParameterizedTest(name = "buildAuthUri(\"{1}\", \"{2}\", {3})")
+	@MethodSource
+	public void testBuildAuthUri(URI authEndpoint, URI redirectEndpoint, String csrfToken, Set<String> scopes, URI expectedResult) {
+		var pkce = Mockito.mock(PKCE.class);
+		Mockito.doReturn("C0D3Ch4ll3ng3").when(pkce).getChallenge();
+		var authFlow = new AuthFlow(client, authEndpoint, pkce);
+
+		var result = authFlow.buildAuthUri(redirectEndpoint, csrfToken, scopes);
+
+		Assertions.assertEquals(expectedResult.getScheme(), result.getScheme());
+		Assertions.assertEquals(expectedResult.getAuthority(), result.getAuthority());
+		Assertions.assertEquals(expectedResult.getPath(), result.getPath());
+		// query order might differ:
+		var expectedQueryParams = URIUtil.parseQueryString(expectedResult.getRawQuery());
+		var queryParams = URIUtil.parseQueryString(result.getRawQuery());
+		Assertions.assertEquals(expectedQueryParams, queryParams);
+	}
+
+	public static Stream<Arguments> testBuildAuthUri() {
+		return Stream.of( //
+				Arguments.of(URI.create("https://login.example.com/"), URI.create("http://127.0.0.1/callback"), "token", Set.of(), URI.create("https://login.example.com/?state=token&scope&code_challenge=C0D3Ch4ll3ng3&response_type=code&client_id=my-client&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%2Fcallback")), //
+				Arguments.of(URI.create("https://login.example.com/?foo=bar"), URI.create("http://127.0.0.1/callback"), "token", Set.of(""), URI.create("https://login.example.com/?state=token&scope&code_challenge=C0D3Ch4ll3ng3&response_type=code&client_id=my-client&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%2Fcallback&foo=bar")), //
+				Arguments.of(URI.create("https://login.example.com/"), URI.create("http://127.0.0.1/callback"), "t0k3n", Set.of("offline_access"), URI.create("https://login.example.com/?state=t0k3n&scope=offline_access&code_challenge=C0D3Ch4ll3ng3&response_type=code&client_id=my-client&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%2Fcallback")), //
+				Arguments.of(URI.create("https://login.example.com/?foo=bar"), URI.create("http://127.0.0.1/callback"), "token", Set.of("offline_access"), URI.create("https://login.example.com/?state=token&scope=offline_access&code_challenge=C0D3Ch4ll3ng3&response_type=code&client_id=my-client&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%2Fcallback&foo=bar")), //
+				Arguments.of(URI.create("https://login.example.com/?foo=bar"), URI.create("http://127.0.0.1/c?all=back"), "token", Set.of("offline_access"), URI.create("https://login.example.com/?state=token&scope=offline_access&code_challenge=C0D3Ch4ll3ng3&response_type=code&client_id=my-client&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%2Fc%3Fall%3Dback&foo=bar"))
+		);
+	}
+
 	@Nested
 	@SuppressWarnings("resource")
 	@Timeout(1)
@@ -201,7 +235,7 @@ public class AuthFlowTest {
 
 		@Test
 		@DisplayName("authorize(...) calls redirectTarget.setSuccessResponse(...)")
-		public void testConfigureSuccessResponse() {
+		public void testApplySuccessResponse() {
 			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
 
 			Mockito.verify(redirectTarget).setSuccessResponse(authFlow.successResponse);
@@ -209,56 +243,24 @@ public class AuthFlowTest {
 
 		@Test
 		@DisplayName("authorize(...) calls redirectTarget.setErrorResponse(...)")
-		public void testConfigureErrorResponse() {
+		public void testApplyErrorResponse() {
 			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
 
 			Mockito.verify(redirectTarget).setErrorResponse(authFlow.errorResponse);
 		}
 
 		@Test
-		@DisplayName("authorize(...) appends params to existing query string of auth endpoint")
+		@DisplayName("authorize(...) opens browser with URI returned from buildAuthUri(...)")
 		public void testAuthorizeWithExistingQueryParams() throws IOException {
-			var authEndpoint = URI.create("https://login.example.com/?existing_param=existing-value");
-			var authFlow = new AuthFlow(client, authEndpoint, pkce);
+			var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
+			var completeUri = URI.create("https://login.example.com/?some&more&params");
+			Mockito.doReturn(completeUri).when(authFlow).buildAuthUri(Mockito.any(), Mockito.any(), Mockito.any());
 
 			var result = authFlow.authorize(browser);
 
 			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
-			var browsedUriCaptor = ArgumentCaptor.forClass(URI.class);
-			Mockito.verify(browser).accept(browsedUriCaptor.capture());
-			var browsedUri = browsedUriCaptor.getValue();
-			Assertions.assertNotNull(browsedUri);
-			Assertions.assertNotNull(browsedUri.getRawQuery());
-			var queryParams = URIUtil.parseQueryString(browsedUri.getRawQuery());
-			Assertions.assertEquals("existing-value", queryParams.get("existing_param"));
-			Assertions.assertEquals(client.clientId, queryParams.get("client_id"));
-			Assertions.assertEquals("code", queryParams.get("response_type"));
-			Assertions.assertEquals(redirectTarget.getCsrfToken(), queryParams.get("state"));
-			Assertions.assertEquals(PKCE.METHOD, queryParams.get("code_challenge_method"));
-			Assertions.assertEquals(pkce.challenge, queryParams.get("code_challenge"));
-			Assertions.assertEquals(redirectTarget.getRedirectUri().toString(), queryParams.get("redirect_uri"));
-		}
-
-		@Test
-		@DisplayName("authorize(...) adds scopes to query params")
-		public void testAuthorizeWithCustomScopes() throws IOException {
-			var result = authFlow.authorize(browser, "scope1", "scope2");
-
-			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
-			var browsedUriCaptor = ArgumentCaptor.forClass(URI.class);
-			Mockito.verify(browser).accept(browsedUriCaptor.capture());
-			var browsedUri = browsedUriCaptor.getValue();
-			Assertions.assertNotNull(browsedUri);
-			Assertions.assertNotNull(browsedUri.getRawQuery());
-			var queryParams = URIUtil.parseQueryString(browsedUri.getRawQuery());
-			Assertions.assertEquals(client.clientId, queryParams.get("client_id"));
-			Assertions.assertEquals("code", queryParams.get("response_type"));
-			Assertions.assertEquals(redirectTarget.getCsrfToken(), queryParams.get("state"));
-			Assertions.assertEquals(PKCE.METHOD, queryParams.get("code_challenge_method"));
-			Assertions.assertEquals(pkce.challenge, queryParams.get("code_challenge"));
-			Assertions.assertEquals(redirectTarget.getRedirectUri().toString(), queryParams.get("redirect_uri"));
-			Assertions.assertTrue(queryParams.get("scope").contains("scope1"));
-			Assertions.assertTrue(queryParams.get("scope").contains("scope2"));
+			Mockito.verify(authFlow).buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of());
+			Mockito.verify(browser).accept(completeUri);
 		}
 
 		@Nested
@@ -307,7 +309,7 @@ public class AuthFlowTest {
 				Assertions.assertEquals(client.clientId, params.get("client_id"));
 				Assertions.assertEquals("auth-code", params.get("code"));
 				Assertions.assertEquals("redirect-uri", params.get("redirect_uri"));
-				Assertions.assertEquals(pkce.verifier, params.get("code_verifier"));
+				Assertions.assertEquals(pkce.getVerifier(), params.get("code_verifier"));
 			}
 
 			@Test

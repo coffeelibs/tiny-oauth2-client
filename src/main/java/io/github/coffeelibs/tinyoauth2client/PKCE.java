@@ -1,6 +1,7 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -14,13 +15,21 @@ class PKCE {
 
 	public static final String METHOD = "S256";
 
-	public final String challenge;
-	public final String verifier;
+	private final String challenge;
+	private final String verifier;
 
 	public PKCE() {
 		// https://datatracker.ietf.org/doc/html/rfc7636#section-4
 		this.verifier = RandomUtil.randomToken(43);
 		this.challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256(verifier.getBytes(StandardCharsets.US_ASCII)));
+	}
+
+	public String getChallenge() {
+		return challenge;
+	}
+
+	public String getVerifier() {
+		return verifier;
 	}
 
 	private static byte[] sha256(byte[] input) {

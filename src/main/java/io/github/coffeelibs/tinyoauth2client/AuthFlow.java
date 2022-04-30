@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
@@ -128,29 +129,31 @@ public class AuthFlow {
 		try (var redirectTarget = RedirectTarget.start(redirectPath, redirectPorts)) {
 			redirectTarget.setSuccessResponse(successResponse);
 			redirectTarget.setErrorResponse(errorResponse);
-			var redirectUri = redirectTarget.getRedirectUri().toASCIIString();
-
-			String queryString = "";
-			if (authEndpoint.getRawQuery() != null) {
-				// query component [...] MUST be retained when adding additional query parameters
-				// as per https://datatracker.ietf.org/doc/html/rfc6749#section-3.1
-				queryString = authEndpoint.getRawQuery() + "&";
-			}
-			queryString += URIUtil.buildQueryString(Map.of( //
-					"response_type", "code", //
-					"client_id", client.clientId, //
-					"state", redirectTarget.getCsrfToken(), //
-					"code_challenge", pkce.challenge, //
-					"code_challenge_method", PKCE.METHOD, //
-					"redirect_uri", redirectTarget.getRedirectUri().toASCIIString(), //
-					"scope", String.join(" ", scopes)
-			));
-
-			var authUri = URI.create(authEndpoint.getScheme() + "://" + authEndpoint.getRawAuthority() + authEndpoint.getRawPath() + "?" + queryString);
+			var authUri = buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of(scopes));
 			ForkJoinPool.commonPool().execute(() -> browser.accept(authUri));
 			var code = redirectTarget.receive();
-			return new AuthFlowWithCode(redirectUri, code);
+			return new AuthFlowWithCode(redirectTarget.getRedirectUri().toASCIIString(), code);
 		}
+	}
+
+	@VisibleForTesting
+	URI buildAuthUri(URI redirectEndpoint, String csrfToken, Set<String> scopes) {
+		String queryString = "";
+		if (authEndpoint.getRawQuery() != null) {
+			// query component [...] MUST be retained when adding additional query parameters
+			// as per https://datatracker.ietf.org/doc/html/rfc6749#section-3.1
+			queryString = authEndpoint.getRawQuery() + "&";
+		}
+		queryString += URIUtil.buildQueryString(Map.of( //
+				"response_type", "code", //
+				"client_id", client.clientId, //
+				"state", csrfToken, //
+				"code_challenge", pkce.getChallenge(), //
+				"code_challenge_method", PKCE.METHOD, //
+				"redirect_uri", redirectEndpoint.toASCIIString(), //
+				"scope", String.join(" ", scopes)
+		));
+		return URI.create(authEndpoint.getScheme() + "://" + authEndpoint.getRawAuthority() + authEndpoint.getRawPath() + "?" + queryString);
 	}
 
 	/**
@@ -167,7 +170,7 @@ public class AuthFlow {
 		}
 
 		/**
-		 * Requests a access/refresh token from the given {@code tokenEndpoint}.
+		 * Requests an access token from the {@link TinyOAuth2Client#tokenEndpoint}.
 		 *
 		 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 		 * @throws IOException          In case of I/O errors when communicating with the token endpoint
@@ -179,7 +182,7 @@ public class AuthFlow {
 			var requestBody = URIUtil.buildQueryString(Map.of( //
 					"grant_type", "authorization_code", //
 					"client_id", client.clientId, //
-					"code_verifier", pkce.verifier, //
+					"code_verifier", pkce.getVerifier(), //
 					"code", authorizationCode, //
 					"redirect_uri", redirectUri //
 			));
@@ -194,7 +197,6 @@ public class AuthFlow {
 				throw new IOException("Unexpected HTTP response code " + response.statusCode());
 			}
 		}
-
 
 	}
 

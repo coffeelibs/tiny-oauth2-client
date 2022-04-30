@@ -18,6 +18,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -224,39 +225,39 @@ public class AuthFlowTest {
 		}
 
 		@Test
-		@DisplayName("authorize(...) uses configured path and ports")
+		@DisplayName("requestAuthCode(...) uses configured path and ports")
 		public void testAuthorizeWithFixedPathAndPorts() {
 			authFlow.setRedirectPath("/foo").setRedirectPort(1234, 5678);
 
-			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
+			Assertions.assertDoesNotThrow(() -> authFlow.requestAuthCode(browser));
 
 			redirectTargetClass.verify(() -> RedirectTarget.start(authFlow.redirectPath, authFlow.redirectPorts));
 		}
 
 		@Test
-		@DisplayName("authorize(...) calls redirectTarget.setSuccessResponse(...)")
+		@DisplayName("requestAuthCode(...) calls redirectTarget.setSuccessResponse(...)")
 		public void testApplySuccessResponse() {
-			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
+			Assertions.assertDoesNotThrow(() -> authFlow.requestAuthCode(browser));
 
 			Mockito.verify(redirectTarget).setSuccessResponse(authFlow.successResponse);
 		}
 
 		@Test
-		@DisplayName("authorize(...) calls redirectTarget.setErrorResponse(...)")
+		@DisplayName("requestAuthCode(...) calls redirectTarget.setErrorResponse(...)")
 		public void testApplyErrorResponse() {
-			Assertions.assertDoesNotThrow(() -> authFlow.authorize(browser));
+			Assertions.assertDoesNotThrow(() -> authFlow.requestAuthCode(browser));
 
 			Mockito.verify(redirectTarget).setErrorResponse(authFlow.errorResponse);
 		}
 
 		@Test
-		@DisplayName("authorize(...) opens browser with URI returned from buildAuthUri(...)")
-		public void testAuthorizeWithExistingQueryParams() throws IOException {
+		@DisplayName("requestAuthCode(...) opens browser with URI returned from buildAuthUri(...)")
+		public void testAuthorizeWithExistingQueryParams() throws IOException, InterruptedException {
 			var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
 			var completeUri = URI.create("https://login.example.com/?some&more&params");
 			Mockito.doReturn(completeUri).when(authFlow).buildAuthUri(Mockito.any(), Mockito.any(), Mockito.any());
 
-			var result = authFlow.authorize(browser);
+			var result = authFlow.requestAuthCode(browser);
 
 			Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
 			Mockito.verify(authFlow).buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of());
@@ -339,6 +340,34 @@ public class AuthFlowTest {
 
 		}
 
+	}
+
+	@Test
+	@DisplayName("authorize(...) runs requestAuthCode() and getAccessToken()")
+	@SuppressWarnings("unchecked")
+	public void testAuthorize() throws IOException, InterruptedException {
+		Consumer<URI> browser = Mockito.mock(Consumer.class);
+		var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
+		var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
+		Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
+		Mockito.doReturn("response").when(authFlowWithCode).getAccessToken();
+
+		var result = authFlow.authorize(browser);
+
+		Assertions.assertEquals("response", result);
+	}
+
+	@Test
+	@DisplayName("authorize() throws InterruptedIOException when getAccessToken() throws InterruptedException")
+	@SuppressWarnings("unchecked")
+	public void testInterruptAuthorize() throws IOException, InterruptedException {
+		Consumer<URI> browser = Mockito.mock(Consumer.class);
+		var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
+		var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
+		Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
+		Mockito.doThrow(new InterruptedException()).when(authFlowWithCode).getAccessToken();
+
+		Assertions.assertThrows(InterruptedIOException.class, () -> authFlow.authorize(browser));
 	}
 
 }

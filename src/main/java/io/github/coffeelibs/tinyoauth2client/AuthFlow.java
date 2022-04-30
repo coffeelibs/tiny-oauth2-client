@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -121,11 +122,22 @@ public class AuthFlow {
 	 *
 	 * @param browser An async callback that opens a web browser with the URI it consumes
 	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @return The authentication flow that is now in possession of an authorization code
-	 * @throws IOException In case of I/O errors during communication between browser and this application
+	 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+	 * @throws IOException In case of I/O errors when communicating with the token endpoint
 	 */
 	@Blocking
-	public AuthFlowWithCode authorize(Consumer<URI> browser, String... scopes) throws IOException {
+	public String authorize(Consumer<URI> browser, String... scopes) throws IOException {
+		try {
+			return requestAuthCode(browser, scopes).getAccessToken();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new InterruptedIOException("Interrupted while awaiting token response");
+		}
+	}
+
+	@Blocking
+	@VisibleForTesting
+	AuthFlowWithCode requestAuthCode(Consumer<URI> browser, String... scopes) throws IOException {
 		try (var redirectTarget = RedirectTarget.start(redirectPath, redirectPorts)) {
 			redirectTarget.setSuccessResponse(successResponse);
 			redirectTarget.setErrorResponse(errorResponse);
@@ -159,7 +171,7 @@ public class AuthFlow {
 	/**
 	 * The successfully authenticated authentication flow, ready to retrieve an access token.
 	 */
-	public class AuthFlowWithCode {
+	class AuthFlowWithCode {
 		private final String redirectUri;
 		private final String authorizationCode;
 

@@ -1,7 +1,6 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
-import org.jetbrains.annotations.VisibleForTesting;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

@@ -21,7 +21,8 @@ public class RedirectResponseTest {
 	@Test
 	@DisplayName("constructor throws NPE when status is null")
 	public void testNullStatus() {
-		Assertions.assertThrows(NullPointerException.class, () -> new RedirectResponse(null, URI.create("http://google.com")));
+		var target = URI.create("http://google.com");
+		Assertions.assertThrows(NullPointerException.class, () -> new RedirectResponse(null, target));
 	}
 
 	@Test

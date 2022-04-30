@@ -35,7 +35,7 @@ public class AuthFlow {
 	/**
 	 * Use a system-assigned port number
 	 */
-	public static int[] SYSTEM_ASSIGNED_PORT = {0};
+	public static final int[] SYSTEM_ASSIGNED_PORT = {0};
 
 	@VisibleForTesting
 	final TinyOAuth2Client client;

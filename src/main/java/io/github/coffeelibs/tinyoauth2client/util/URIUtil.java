@@ -3,6 +3,7 @@ package io.github.coffeelibs.tinyoauth2client.util;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -36,6 +37,24 @@ public class URIUtil {
 				return Map.entry(key, val);
 			}
 		}).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+	}
+
+	/**
+	 * Builds a urlencoded query string from the given {@code queryParams}. Percent encoding will be applied to each
+	 * key and value.
+	 * <p>
+	 * The result can either be appended to an {@link java.net.URI} or used in
+	 * {@code application/x-www-form-urlencoded}-encoded request bodies.
+	 *
+	 * @param queryParams key-value pairs
+	 * @return A query string
+	 */
+	public static String buildQueryString(Map<String, String> queryParams) {
+		return queryParams.entrySet().stream().map(entry -> {
+			var encodedKey = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8);
+			var encodedValue = URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8);
+			return encodedKey + (encodedValue.isBlank() ? "" : "=" + encodedValue);
+		}).collect(Collectors.joining("&"));
 	}
 
 }

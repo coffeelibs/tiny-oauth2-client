@@ -1,5 +1,6 @@
 package io.github.coffeelibs.tinyoauth2client.http;
 
+import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

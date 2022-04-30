@@ -10,25 +10,31 @@ This is a minimal zero-dependency implementation of the [RFC 8252 OAuth 2.0 for 
 on [Loopback Interface Redirection](https://datatracker.ietf.org/doc/html/rfc8252#section-7.3) (i.e. no need to register a private-use URI scheme) with full
 support for [PKCE](https://datatracker.ietf.org/doc/html/rfc8252#section-8.1) and [CSRF Protection](https://datatracker.ietf.org/doc/html/rfc8252#section-8.9).
 
+## Requirements
+
+* Java 11+
+* Ideally some JSON or JWT parser of your choice
+
 ## Usage
+
+Configure your authorization server to allow `http://127.0.0.1/*` as a redirect target and look up these configuration values:
+
+* client identifier
+* token endpoint
+* authorization endpoint
 
 ```java
 // this library will just perform the Authorization Flow:
-String tokenResponse = AuthFlow.asClient("oauth-client-id")
-        .authorize(URI.create("https://login.example.com/oauth2/authorize"), uri -> System.out.println("Please login on " + uri))
-        .getAccessToken(URI.create("https://login.example.com/oauth2/token"));
+String tokenResponse = TinyOAuth2.client("oauth-client-id")
+		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
+		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
+		.authorize(uri -> System.out.println("Please login on " + uri));
 
 // from this point onwards, please proceed with the JSON/JWT parser of your choice: 
-String bearerToken = parse(tokenResponse);
+String bearerToken = parseJson(tokenResponse).get("access_token");
 ```
 
-## Customization
-
-The `authorize(...)` method optionally allows you to specify:
-
-* custom [scopes](https://datatracker.ietf.org/doc/html/rfc6749#section-3.3)
-* custom port(s) of your redirect_uri (default will be a system-assigned ephemeral port)
-* a custom path for your redirect_uri (default is a random path)
+If your authorization server doesn't allow wildcards, you can also configure a fixed path (and even port) via e.g. `setRedirectPath("/callback")` and `setRedirectPorts(8080)`.
 
 ## Why this library?
 

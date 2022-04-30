@@ -252,7 +252,7 @@ public class AuthFlowTest {
 
 		@Test
 		@DisplayName("requestAuthCode(...) opens browser with URI returned from buildAuthUri(...)")
-		public void testAuthorizeWithExistingQueryParams() throws IOException, InterruptedException {
+		public void testAuthorizeWithExistingQueryParams() throws IOException {
 			var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
 			var completeUri = URI.create("https://login.example.com/?some&more&params");
 			Mockito.doReturn(completeUri).when(authFlow).buildAuthUri(Mockito.any(), Mockito.any(), Mockito.any());

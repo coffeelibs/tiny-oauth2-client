@@ -11,9 +11,10 @@ public interface Response {
 	void write(Writer writer) throws IOException;
 
 	/**
+	 * Create a response without a body.
 	 *
-	 * @param status
-	 * @return
+	 * @param status Http status code
+	 * @return A new response
 	 */
 	@Contract("!null -> new")
 	static Response empty(Status status) {
@@ -21,9 +22,10 @@ public interface Response {
 	}
 
 	/**
+	 * Create a response without an html body.
 	 *
-	 * @param status
-	 * @param body content served with {@code Content-Type: text/html; charset=UTF-8}
+	 * @param status Http status code
+	 * @param body   content served with {@code Content-Type: text/html; charset=UTF-8}
 	 * @return A new response
 	 */
 	@Contract("!null, !null -> new")
@@ -32,9 +34,10 @@ public interface Response {
 	}
 
 	/**
+	 * Create a HTTP status code 303 redirect response.
 	 *
-	 * @param target URI of page to show
-	 * @return
+	 * @param target URI of page to redirect to
+	 * @return A new response
 	 */
 	@Contract("!null -> new")
 	static Response redirect(URI target) {

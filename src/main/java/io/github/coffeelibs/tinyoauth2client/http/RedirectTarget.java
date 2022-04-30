@@ -1,7 +1,9 @@
 package io.github.coffeelibs.tinyoauth2client.http;
 
+import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
+import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.BufferedReader;
@@ -37,8 +39,8 @@ public class RedirectTarget implements Closeable {
 	private final String path;
 	private final String csrfToken;
 
-	private Response successResponse = Response.html(Response.Status.OK, "<html><body>Success</body></html>");
-	private Response errorResponse = Response.html(Response.Status.OK, "<html><body>Error</body></html>");
+	private Response successResponse = Response.empty(Response.Status.OK);
+	private Response errorResponse = Response.empty(Response.Status.OK);
 
 	private RedirectTarget(ServerSocketChannel serverChannel, String path) {
 		this.serverChannel = serverChannel;
@@ -123,6 +125,7 @@ public class RedirectTarget implements Closeable {
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2">RFC 6749, 4.1.2. Authorization Response</a>
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1">RFC 6749, 4.1.2.1 Error Response</a>
 	 */
+	@Blocking
 	public String receive() throws IOException {
 		var client = serverChannel.accept();
 		try (var reader = new BufferedReader(Channels.newReader(client, StandardCharsets.US_ASCII));

@@ -1,14 +1,15 @@
-package io.github.coffeelibs.tinyoauth2client.http;
+package io.github.coffeelibs.tinyoauth2client.http.response;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.Objects;
 
 class EmptyResponse implements Response {
 
 	private final Status status;
 
 	public EmptyResponse(Response.Status status) {
-		this.status = status;
+		this.status = Objects.requireNonNull(status);
 	}
 
 	@Override

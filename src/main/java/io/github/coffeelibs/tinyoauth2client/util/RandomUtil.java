@@ -38,7 +38,7 @@ public class RandomUtil {
 	 * @param len Desired number of bytes
 	 * @return A random byte array
 	 */
-	public static byte[] randomBytes(int len) {
+	private static byte[] randomBytes(int len) {
 		byte[] bytes = new byte[len];
 		CSPRNG.nextBytes(bytes);
 		return bytes;

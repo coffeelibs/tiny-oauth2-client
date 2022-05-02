@@ -119,14 +119,17 @@ public class AuthFlow {
 	/**
 	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
+	 * <p>
+	 * Then, the received authorization code is used to make an
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
 	 *
 	 * @param browser An async callback that opens a web browser with the URI it consumes
 	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+	 * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 	 * @throws IOException In case of I/O errors when communicating with the token endpoint
 	 */
 	@Blocking
-	public String authorize(Consumer<URI> browser, String... scopes) throws IOException {
+	public HttpResponse<String> authorize(Consumer<URI> browser, String... scopes) throws IOException {
 		try {
 			return requestAuthCode(browser, scopes).getAccessToken();
 		} catch (InterruptedException e) {
@@ -135,6 +138,15 @@ public class AuthFlow {
 		}
 	}
 
+	/**
+	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
+	 *
+	 * @param browser An async callback that opens a web browser with the URI it consumes
+	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+	 * @return An authorized instance holding the received <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2">authorization code</a>
+	 * @throws IOException In case of I/O errors when communicating with the token endpoint
+	 */
 	@Blocking
 	@VisibleForTesting
 	AuthFlowWithCode requestAuthCode(Consumer<URI> browser, String... scopes) throws IOException {
@@ -181,33 +193,28 @@ public class AuthFlow {
 			this.authorizationCode = authorizationCode;
 		}
 
-		/**
-		 * Requests an access token from the {@link TinyOAuth2Client#tokenEndpoint}.
-		 *
-		 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-		 * @throws IOException          In case of I/O errors when communicating with the token endpoint
-		 * @throws InterruptedException When this thread is interrupted before a response is received
-		 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">RFC 6749 Section 4.1.3: Access Token Request</a>
-		 */
-		@Blocking
-		public String getAccessToken() throws IOException, InterruptedException {
-			var requestBody = URIUtil.buildQueryString(Map.of( //
+		@VisibleForTesting
+		HttpRequest buildTokenRequest() {
+			return client.buildTokenRequest(Map.of( //
 					"grant_type", "authorization_code", //
 					"client_id", client.clientId, //
 					"code_verifier", pkce.getVerifier(), //
 					"code", authorizationCode, //
 					"redirect_uri", redirectUri //
 			));
-			var request = HttpRequest.newBuilder(client.tokenEndpoint) //
-					.header("Content-Type", "application/x-www-form-urlencoded") //
-					.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString())) //
-					.build();
-			HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-			if (response.statusCode() == 200) {
-				return response.body();
-			} else {
-				throw new IOException("Unexpected HTTP response code " + response.statusCode());
-			}
+		}
+
+		/**
+		 * Requests an access token from the {@link TinyOAuth2Client#tokenEndpoint}.
+		 *
+		 * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+		 * @throws IOException          In case of I/O errors when communicating with the token endpoint
+		 * @throws InterruptedException When this thread is interrupted before a response is received
+		 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">RFC 6749 Section 4.1.3: Access Token Request</a>
+		 */
+		@Blocking
+		public HttpResponse<String> getAccessToken() throws IOException, InterruptedException {
+			return HttpClient.newHttpClient().send(buildTokenRequest(), HttpResponse.BodyHandlers.ofString());
 		}
 
 	}

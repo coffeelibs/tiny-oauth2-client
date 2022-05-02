@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -23,6 +22,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
@@ -30,7 +30,7 @@ import java.util.stream.Stream;
 
 public class AuthFlowTest {
 
-	private final TinyOAuth2Client client = new TinyOAuth2Client("my-client", URI.create("http://example.com/oauth2/token"));
+	private final TinyOAuth2Client client = Mockito.spy(new TinyOAuth2Client("my-client", URI.create("http://example.com/oauth2/token")));
 	private final URI authEndpoint = URI.create("https://login.example.com/");
 	private final PKCE pkce = new PKCE();
 
@@ -268,74 +268,43 @@ public class AuthFlowTest {
 		@DisplayName("After receiving auth code")
 		public class WithAuthCode {
 
-			private AuthFlow.AuthFlowWithCode authFlowWithCode;
-			private HttpClient httpClient;
-			private HttpResponse<String> httpRespone;
-			private MockedStatic<HttpClient> httpClientClass;
+			@Test
+			@DisplayName("buildTokenRequest() builds new http request")
+			public void testBuildTokenRequest() {
+				var authFlowWithCode = authFlow.new AuthFlowWithCode("redirect-uri", "auth-code");
+				var request = Mockito.mock(HttpRequest.class);
+				Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
 
-			@BeforeEach
-			@SuppressWarnings("unchecked")
-			public void setup() throws IOException, InterruptedException {
-				authFlowWithCode = authFlow.new AuthFlowWithCode("redirect-uri", "auth-code");
+				var result = authFlowWithCode.buildTokenRequest();
 
-				httpClient = Mockito.mock(HttpClient.class);
-				httpRespone = Mockito.mock(HttpResponse.class);
-				httpClientClass = Mockito.mockStatic(HttpClient.class);
-
-				httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
-				Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
-			}
-
-			@AfterEach
-			public void tearDown() {
-				httpClientClass.close();
+				Assertions.assertEquals(request, result);
+				Mockito.verify(client).buildTokenRequest(Map.of(//
+						"grant_type", "authorization_code", //
+						"client_id", client.clientId, //
+						"code_verifier", pkce.getVerifier(), //
+						"code", "auth-code", //
+						"redirect_uri", "redirect-uri" //
+				));
 			}
 
 			@Test
-			@DisplayName("body contains all params")
-			public void testGetAccessTokenQuery() throws IOException, InterruptedException {
-				Mockito.doReturn(200).when(httpRespone).statusCode();
-				var bodyCaptor = ArgumentCaptor.forClass(String.class);
-				var bodyPublisher = Mockito.mock(HttpRequest.BodyPublisher.class);
-				try (var bodyPublishersClass = Mockito.mockStatic(HttpRequest.BodyPublishers.class)) {
-					bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(bodyPublisher);
+			@DisplayName("getAccessToken() sends access token request")
+			public void testGetAccessToken() throws IOException, InterruptedException {
+				var authFlowWithCode = Mockito.spy(authFlow.new AuthFlowWithCode("redirect-uri", "auth-code"));
+				var httpClient = Mockito.mock(HttpClient.class);
+				var httpRequest = Mockito.mock(HttpRequest.class);
+				var httpRespone = Mockito.mock(HttpResponse.class);
+				try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
+					httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
+					Mockito.doReturn(httpRequest).when(authFlowWithCode).buildTokenRequest();
+					Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
 
-					authFlowWithCode.getAccessToken();
+					var result = authFlowWithCode.getAccessToken();
 
-					bodyPublishersClass.verify(() -> HttpRequest.BodyPublishers.ofString(bodyCaptor.capture()));
+					Assertions.assertEquals(httpRespone, result);
+					Mockito.verify(authFlowWithCode).buildTokenRequest();
+					Mockito.verify(httpClient).send(httpRequest, HttpResponse.BodyHandlers.ofString());
 				}
-				var body = bodyCaptor.getValue();
-				var params = URIUtil.parseQueryString(body);
-				Assertions.assertEquals("authorization_code", params.get("grant_type"));
-				Assertions.assertEquals(client.clientId, params.get("client_id"));
-				Assertions.assertEquals("auth-code", params.get("code"));
-				Assertions.assertEquals("redirect-uri", params.get("redirect_uri"));
-				Assertions.assertEquals(pkce.getVerifier(), params.get("code_verifier"));
-			}
-
-			@Test
-			@DisplayName("send POST request to token endpoint")
-			public void testGetAccessToken200() throws IOException, InterruptedException {
-				Mockito.doReturn(200).when(httpRespone).statusCode();
-				Mockito.doReturn("BODY").when(httpRespone).body();
-				var requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
-
-				var result = authFlowWithCode.getAccessToken();
-
-				Assertions.assertEquals("BODY", result);
-				Mockito.verify(httpClient).send(requestCaptor.capture(), Mockito.any());
-				var request = requestCaptor.getValue();
-				Assertions.assertSame(client.tokenEndpoint, request.uri());
-				Assertions.assertEquals("POST", request.method());
-				Assertions.assertEquals("application/x-www-form-urlencoded", request.headers().firstValue("Content-Type").orElse(null));
-			}
-
-			@Test
-			@DisplayName("non-success response from token endpoint leads to IOException")
-			public void testGetAccessToken404() {
-				Mockito.doReturn(404).when(httpRespone).statusCode();
-
-				Assertions.assertThrows(IOException.class, () -> authFlowWithCode.getAccessToken());
 			}
 
 		}
@@ -349,12 +318,13 @@ public class AuthFlowTest {
 		Consumer<URI> browser = Mockito.mock(Consumer.class);
 		var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
 		var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
+		var httpResponse = Mockito.mock(HttpResponse.class);
 		Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
-		Mockito.doReturn("response").when(authFlowWithCode).getAccessToken();
+		Mockito.doReturn(httpResponse).when(authFlowWithCode).getAccessToken();
 
 		var result = authFlow.authorize(browser);
 
-		Assertions.assertEquals("response", result);
+		Assertions.assertEquals(httpResponse, result);
 	}
 
 	@Test

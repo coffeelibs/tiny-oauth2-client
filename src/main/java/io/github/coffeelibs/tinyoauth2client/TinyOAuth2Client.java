@@ -1,7 +1,10 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.net.URI;
@@ -16,6 +19,7 @@ import java.util.Objects;
  * 
  * @see TinyOAuth2#client(String)
  */
+@ApiStatus.Experimental
 public class TinyOAuth2Client {
 
 	/**
@@ -48,29 +52,39 @@ public class TinyOAuth2Client {
 	 *
 	 * @param refreshToken The refresh token
 	 * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-	 * @return The raw <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+	 * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 	 * @throws IOException          In case of I/O errors when communicating with the token endpoint
 	 * @throws InterruptedException When this thread is interrupted before a response is received
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-6">RFC 6749 Section 6: Refreshing an Access Token</a>
 	 */
 	@Blocking
-	public String refresh(String refreshToken, String... scopes) throws IOException, InterruptedException {
-		var requestBody = URIUtil.buildQueryString(Map.of(//
+	public HttpResponse<String> refresh(String refreshToken, String... scopes) throws IOException, InterruptedException {
+		return HttpClient.newHttpClient().send(buildRefreshTokenRequest(refreshToken, scopes), HttpResponse.BodyHandlers.ofString());
+	}
+
+	@VisibleForTesting
+	HttpRequest buildRefreshTokenRequest(String refreshToken, String... scopes) {
+		return buildTokenRequest(Map.of(//
 				"grant_type", "refresh_token", //
 				"refresh_token", refreshToken, //
 				"client_id", clientId, //
 				"scope", String.join(" ", scopes)
 		));
-		var request = HttpRequest.newBuilder(tokenEndpoint) //
+	}
+
+	/**
+	 * Creates a new HTTP request targeting the {@link #tokenEndpoint}.
+	 *
+	 * @param parameters Parameters to send in an {@code application/x-www-form-urlencoded} request body
+	 * @return A new http request
+	 */
+	@Contract("_ -> new")
+	HttpRequest buildTokenRequest(Map<String, String> parameters) {
+		var urlencodedParams = URIUtil.buildQueryString(parameters);
+		return HttpRequest.newBuilder(tokenEndpoint) //
 				.header("Content-Type", "application/x-www-form-urlencoded") //
-				.POST(HttpRequest.BodyPublishers.ofString(requestBody)) //
+				.POST(HttpRequest.BodyPublishers.ofString(urlencodedParams)) //
 				.build();
-		HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-		if (response.statusCode() == 200) {
-			return response.body();
-		} else {
-			throw new IOException("Unexpected HTTP response code " + response.statusCode());
-		}
 	}
 
 }

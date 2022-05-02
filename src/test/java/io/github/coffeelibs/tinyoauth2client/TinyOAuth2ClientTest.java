@@ -1,14 +1,9 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -16,6 +11,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
 
 public class TinyOAuth2ClientTest {
 
@@ -32,79 +28,106 @@ public class TinyOAuth2ClientTest {
 		Assertions.assertNotNull(authFlow.pkce);
 	}
 
-	@Nested
-	@DisplayName("refresh(...)")
-	public class RefreshTokens {
-
-		private URI tokenEndpoint;
-		private TinyOAuth2Client client;
-		private HttpClient httpClient;
-		private HttpResponse<String> httpRespone;
-		private MockedStatic<HttpClient> httpClientClass;
-
-		@BeforeEach
-		@SuppressWarnings("unchecked")
-		public void setup() throws IOException, InterruptedException {
-			tokenEndpoint = URI.create("http://example.com/oauth2/token");
-			client = new TinyOAuth2Client("my-client", tokenEndpoint);
-
-			httpClient = Mockito.mock(HttpClient.class);
-			httpRespone = Mockito.mock(HttpResponse.class);
-			httpClientClass = Mockito.mockStatic(HttpClient.class);
-
+	@Test
+	@DisplayName("refresh(\"r3fr3sh70k3n\") sends refresh token request")
+	public void testRefresh() throws IOException, InterruptedException {
+		var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+		var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
+		var httpClient = Mockito.mock(HttpClient.class);
+		var httpRequest = Mockito.mock(HttpRequest.class);
+		var httpRespone = Mockito.mock(HttpResponse.class);
+		try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
 			httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
+			Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest(Mockito.any());
 			Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
-		}
-
-		@AfterEach
-		public void tearDown() {
-			httpClientClass.close();
-		}
-
-		@Test
-		@DisplayName("body contains all params")
-		public void testRefresh() throws IOException, InterruptedException {
-			Mockito.doReturn(200).when(httpRespone).statusCode();
-			var bodyCaptor = ArgumentCaptor.forClass(String.class);
-			var bodyPublisher = Mockito.mock(HttpRequest.BodyPublisher.class);
-			try (var bodyPublishersClass = Mockito.mockStatic(HttpRequest.BodyPublishers.class)) {
-				bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(bodyPublisher);
-
-				client.refresh("r3fr3sh70k3n", "offline_access");
-
-				bodyPublishersClass.verify(() -> HttpRequest.BodyPublishers.ofString(bodyCaptor.capture()));
-			}
-			var body = bodyCaptor.getValue();
-			var params = URIUtil.parseQueryString(body);
-			Assertions.assertEquals("refresh_token", params.get("grant_type"));
-			Assertions.assertEquals(client.clientId, params.get("client_id"));
-			Assertions.assertEquals("r3fr3sh70k3n", params.get("refresh_token"));
-			Assertions.assertEquals("offline_access", params.get("scope"));
-		}
-
-		@Test
-		@DisplayName("send POST request to token endpoint")
-		public void testGetAccessToken200() throws IOException, InterruptedException {
-			Mockito.doReturn(200).when(httpRespone).statusCode();
-			Mockito.doReturn("BODY").when(httpRespone).body();
-			var requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
 
 			var result = client.refresh("r3fr3sh70k3n");
 
-			Assertions.assertEquals("BODY", result);
-			Mockito.verify(httpClient).send(requestCaptor.capture(), Mockito.any());
-			var request = requestCaptor.getValue();
-			Assertions.assertSame(tokenEndpoint, request.uri());
-			Assertions.assertEquals("POST", request.method());
-			Assertions.assertEquals("application/x-www-form-urlencoded", request.headers().firstValue("Content-Type").orElse(null));
+			Assertions.assertEquals(httpRespone, result);
+			Mockito.verify(client).buildRefreshTokenRequest("r3fr3sh70k3n");
+			Mockito.verify(httpClient).send(httpRequest, HttpResponse.BodyHandlers.ofString());
 		}
+	}
 
-		@Test
-		@DisplayName("non-success response from token endpoint leads to IOException")
-		public void testGetAccessToken404() {
-			Mockito.doReturn(404).when(httpRespone).statusCode();
+	@Test
+	@DisplayName("refresh(\"r3fr3sh70k3n\", \"foo\", \"bar\") sends refresh token request")
+	public void testRefreshWithScopes() throws IOException, InterruptedException {
+		var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+		var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
+		var httpClient = Mockito.mock(HttpClient.class);
+		var httpRequest = Mockito.mock(HttpRequest.class);
+		var httpRespone = Mockito.mock(HttpResponse.class);
+		try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
+			httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
+			Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest(Mockito.any(), Mockito.any());
+			Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
 
-			Assertions.assertThrows(IOException.class, () -> client.refresh("r3fr3sh70k3n"));
+			var result = client.refresh("r3fr3sh70k3n", "foo", "bar");
+
+			Assertions.assertEquals(httpRespone, result);
+			Mockito.verify(client).buildRefreshTokenRequest("r3fr3sh70k3n", "foo", "bar");
+			Mockito.verify(httpClient).send(httpRequest, HttpResponse.BodyHandlers.ofString());
+		}
+	}
+
+	@Test
+	@DisplayName("buildRefreshTokenRequest(\"r3fr3sh70k3n\") builds new http request")
+	public void testBuildRefreshTokenRequest() {
+		var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+		var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
+		var request = Mockito.mock(HttpRequest.class);
+		Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
+
+		var result = client.buildRefreshTokenRequest("r3fr3sh70k3n");
+
+		Assertions.assertEquals(request, result);
+		Mockito.verify(client).buildTokenRequest(Map.of(//
+				"grant_type", "refresh_token", //
+				"refresh_token", "r3fr3sh70k3n", //
+				"client_id", "my-client", //
+				"scope", ""
+		));
+	}
+
+	@Test
+	@DisplayName("buildRefreshTokenRequest(\"r3fr3sh70k3n\", \"foo\", \"bar\") builds new http request")
+	public void testBuildRefreshTokenRequestWithScopes() {
+		var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+		var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
+		var request = Mockito.mock(HttpRequest.class);
+		Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
+
+		var result = client.buildRefreshTokenRequest("r3fr3sh70k3n", "foo", "bar");
+
+		Assertions.assertEquals(request, result);
+		Mockito.verify(client).buildTokenRequest(Map.of(//
+				"grant_type", "refresh_token", //
+				"refresh_token", "r3fr3sh70k3n", //
+				"client_id", "my-client", //
+				"scope", "foo bar"
+		));
+	}
+
+	@Test
+	@DisplayName("buildTokenRequest(...) creates new POST request with application/x-www-form-urlencoded params")
+	public void testBuildTokenRequest() {
+		var tokenEndpoint = URI.create("http://example.com/oauth2/token");
+		var client = new TinyOAuth2Client("my-client", tokenEndpoint);
+		var params = Map.of("query", "string", "mock", "true");
+		var bodyPublisher = Mockito.mock(HttpRequest.BodyPublisher.class);
+		try (var bodyPublishersClass = Mockito.mockStatic(HttpRequest.BodyPublishers.class);
+			 var uriUtilClass = Mockito.mockStatic(URIUtil.class)) {
+			uriUtilClass.when(() -> URIUtil.buildQueryString(Mockito.any())).thenReturn("query=string&mock=true");
+			bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(bodyPublisher);
+
+			var request = client.buildTokenRequest(params);
+
+			uriUtilClass.verify(() -> URIUtil.buildQueryString(Mockito.same(params)));
+			bodyPublishersClass.verify(() -> HttpRequest.BodyPublishers.ofString("query=string&mock=true"));
+			Assertions.assertEquals(tokenEndpoint, request.uri());
+			Assertions.assertEquals("POST", request.method());
+			Assertions.assertEquals(bodyPublisher, request.bodyPublisher().get());
+			Assertions.assertEquals("application/x-www-form-urlencoded", request.headers().firstValue("Content-Type").orElse(null));
 		}
 
 	}

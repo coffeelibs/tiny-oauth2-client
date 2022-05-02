@@ -3,6 +3,7 @@ package io.github.coffeelibs.tinyoauth2client;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.BlockingExecutor;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.VisibleForTesting;
 
@@ -13,10 +14,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * An OAuth2 <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.1">public client</a> capable of making requests to a token endpoint.
- * 
+ *
  * @see TinyOAuth2#client(String)
  */
 @ApiStatus.Experimental
@@ -50,12 +53,26 @@ public class TinyOAuth2Client {
 	/**
 	 * Refreshes an access token using the given {@code refreshToken}.
 	 *
+	 * @param executor     The executor to run the async tasks
+	 * @param refreshToken The refresh token
+	 * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+	 * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+	 * @see #refresh(String, String...)
+	 */
+	public CompletableFuture<HttpResponse<String>> refreshAsync(@BlockingExecutor Executor executor, String refreshToken, String... scopes) {
+		return HttpClient.newBuilder().executor(executor).build().sendAsync(buildRefreshTokenRequest(refreshToken, scopes), HttpResponse.BodyHandlers.ofString());
+	}
+
+	/**
+	 * Refreshes an access token using the given {@code refreshToken}.
+	 *
 	 * @param refreshToken The refresh token
 	 * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
 	 * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 	 * @throws IOException          In case of I/O errors when communicating with the token endpoint
 	 * @throws InterruptedException When this thread is interrupted before a response is received
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-6">RFC 6749 Section 6: Refreshing an Access Token</a>
+	 * @see #refreshAsync(Executor, String, String...)
 	 */
 	@Blocking
 	public HttpResponse<String> refresh(String refreshToken, String... scopes) throws IOException, InterruptedException {

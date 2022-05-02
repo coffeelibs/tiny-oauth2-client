@@ -6,11 +6,12 @@ import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.BlockingExecutor;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
-import java.io.InterruptedIOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,6 +19,8 @@ import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
@@ -123,19 +126,39 @@ public class AuthFlow {
 	 * Then, the received authorization code is used to make an
 	 * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
 	 *
-	 * @param browser An async callback that opens a web browser with the URI it consumes
+	 * @param executor The executor to run the async tasks
+	 * @param browser An async callback (not blocking the executor) that opens a web browser with the URI it consumes
+	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+	 * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+	 * @see #authorize(Consumer, String...)
+	 */
+	public CompletableFuture<HttpResponse<String>> authorizeAsync(@BlockingExecutor Executor executor, Consumer<URI> browser, String... scopes) {
+		return CompletableFuture.supplyAsync(() -> {
+			try {
+				return requestAuthCode(browser, scopes);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}, executor).thenCompose(authorizedFlow -> authorizedFlow.getAccessTokenAsync(executor));
+	}
+
+	/**
+	 * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
+	 * <p>
+	 * Then, the received authorization code is used to make an
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
+	 *
+	 * @param browser An async callback (not blocking this thread) that opens a web browser with the URI it consumes
 	 * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
 	 * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 	 * @throws IOException In case of I/O errors when communicating with the token endpoint
+	 * @throws InterruptedException When this thread is interrupted before a response is received
+	 * @see #authorizeAsync(Executor, Consumer, String...)
 	 */
 	@Blocking
-	public HttpResponse<String> authorize(Consumer<URI> browser, String... scopes) throws IOException {
-		try {
-			return requestAuthCode(browser, scopes).getAccessToken();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new InterruptedIOException("Interrupted while awaiting token response");
-		}
+	public HttpResponse<String> authorize(Consumer<URI> browser, String... scopes) throws IOException, InterruptedException {
+		return requestAuthCode(browser, scopes).getAccessToken();
 	}
 
 	/**
@@ -204,16 +227,14 @@ public class AuthFlow {
 			));
 		}
 
-		/**
-		 * Requests an access token from the {@link TinyOAuth2Client#tokenEndpoint}.
-		 *
-		 * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-		 * @throws IOException          In case of I/O errors when communicating with the token endpoint
-		 * @throws InterruptedException When this thread is interrupted before a response is received
-		 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">RFC 6749 Section 4.1.3: Access Token Request</a>
-		 */
+		public CompletableFuture<HttpResponse<String>> getAccessTokenAsync(@BlockingExecutor Executor executor) {
+			return HttpClient.newBuilder().executor(executor).build().sendAsync(buildTokenRequest(), HttpResponse.BodyHandlers.ofString());
+		}
+
 		@Blocking
 		public HttpResponse<String> getAccessToken() throws IOException, InterruptedException {
+			// see https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
+			// and https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
 			return HttpClient.newHttpClient().send(buildTokenRequest(), HttpResponse.BodyHandlers.ofString());
 		}
 

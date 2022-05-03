@@ -25,13 +25,17 @@ Configure your authorization server to allow `http://127.0.0.1/*` as a redirect 
 
 ```java
 // this library will just perform the Authorization Flow:
-String tokenResponse = TinyOAuth2.client("oauth-client-id")
+var httpResponse = TinyOAuth2.client("oauth-client-id")
 		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
 		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
 		.authorize(uri -> System.out.println("Please login on " + uri));
 
-// from this point onwards, please proceed with the JSON/JWT parser of your choice: 
-String bearerToken = parseJson(tokenResponse).get("access_token");
+// from this point onwards, please proceed with the JSON/JWT parser of your choice:
+if (httpResponse.statusCode() == 200) {
+	var jsonString = httpResponse.body()
+	var bearerToken = parseJson(jsonString).get("access_token");
+	// ...
+}
 ```
 
 If your authorization server doesn't allow wildcards, you can also configure a fixed path (and even port) via e.g. `setRedirectPath("/callback")` and `setRedirectPorts(8080)`.

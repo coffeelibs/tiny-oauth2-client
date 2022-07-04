@@ -197,9 +197,12 @@ public class AuthFlow {
 				"state", csrfToken, //
 				"code_challenge", pkce.getChallenge(), //
 				"code_challenge_method", PKCE.METHOD, //
-				"redirect_uri", redirectEndpoint.toASCIIString(), //
-				"scope", String.join(" ", scopes)
+				"redirect_uri", redirectEndpoint.toASCIIString()
 		));
+
+		if(scopes.size() > 0) {
+			queryString += "&" + URIUtil.buildQueryString(Map.of("scope" ,String.join(" ", scopes)));
+		}
 		return URI.create(authEndpoint.getScheme() + "://" + authEndpoint.getRawAuthority() + authEndpoint.getRawPath() + "?" + queryString);
 	}
 

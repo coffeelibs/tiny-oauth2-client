@@ -11,22 +11,22 @@ import java.io.IOException;
 
 public class EmptyResponseTest {
 
-	@Test
-	@DisplayName("constructor throws NPE when status is null")
-	public void testNullStatus() {
-		Assertions.assertThrows(NullPointerException.class, () -> new EmptyResponse(null));
-	}
+    @Test
+    @DisplayName("constructor throws NPE when status is null")
+    public void testNullStatus() {
+        Assertions.assertThrows(NullPointerException.class, () -> new EmptyResponse(null));
+    }
 
-	@Test
-	@DisplayName("write() writes expected response")
-	public void testWrite() throws IOException {
-		var response = new EmptyResponse(Response.Status.OK);
-		var writer = new CharArrayWriter();
+    @Test
+    @DisplayName("write() writes expected response")
+    public void testWrite() throws IOException {
+        var response = new EmptyResponse(Response.Status.OK);
+        var writer = new CharArrayWriter();
 
-		response.write(writer);
+        response.write(writer);
 
-		var str = writer.toString();
-		Assertions.assertTrue(str.startsWith("HTTP/1.1 200 OK"));
-	}
+        var str = writer.toString();
+        Assertions.assertTrue(str.startsWith("HTTP/1.1 200 OK"));
+    }
 
 }

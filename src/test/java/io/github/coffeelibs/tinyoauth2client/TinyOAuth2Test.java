@@ -8,16 +8,16 @@ import java.net.URI;
 
 public class TinyOAuth2Test {
 
-	@Test
-	@DisplayName("test fluent client builder")
-	public void testBuilder() {
-		var clientId = "foo";
-		var tokenEndpoint = URI.create("bar");
+    @Test
+    @DisplayName("test fluent client builder")
+    public void testBuilder() {
+        var clientId = "foo";
+        var tokenEndpoint = URI.create("bar");
 
-		var client = TinyOAuth2.client(clientId).withTokenEndpoint(tokenEndpoint);
+        var client = TinyOAuth2.client(clientId).withTokenEndpoint(tokenEndpoint);
 
-		Assertions.assertSame(clientId, client.clientId);
-		Assertions.assertSame(tokenEndpoint, client.tokenEndpoint);
-	}
+        Assertions.assertSame(clientId, client.clientId);
+        Assertions.assertSame(tokenEndpoint, client.tokenEndpoint);
+    }
 
 }

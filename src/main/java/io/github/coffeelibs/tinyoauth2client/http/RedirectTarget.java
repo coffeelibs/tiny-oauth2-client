@@ -33,167 +33,167 @@ import java.util.Objects;
  */
 public class RedirectTarget implements Closeable {
 
-	static final InetAddress LOOPBACK_ADDR = InetAddress.getLoopbackAddress();
+    static final InetAddress LOOPBACK_ADDR = InetAddress.getLoopbackAddress();
 
-	private final ServerSocketChannel serverChannel;
-	private final String path;
-	private final String csrfToken;
+    private final ServerSocketChannel serverChannel;
+    private final String path;
+    private final String csrfToken;
 
-	private Response successResponse = Response.empty(Response.Status.OK);
-	private Response errorResponse = Response.empty(Response.Status.OK);
+    private Response successResponse = Response.empty(Response.Status.OK);
+    private Response errorResponse = Response.empty(Response.Status.OK);
 
-	private RedirectTarget(ServerSocketChannel serverChannel, String path) {
-		this.serverChannel = serverChannel;
-		this.path = path;
-		this.csrfToken = RandomUtil.randomToken(16);
-	}
+    private RedirectTarget(ServerSocketChannel serverChannel, String path) {
+        this.serverChannel = serverChannel;
+        this.path = path;
+        this.csrfToken = RandomUtil.randomToken(16);
+    }
 
-	/**
-	 * Spawns a server on one of the given ports, ready to accept connections.
-	 * <p>
-	 * If one or many {@code ports} are specified, an attempt is made to bind to the first available port. If omitted,
-	 * a system-assigned port is used.
-	 *
-	 * @param path  The path to listen on. All other requests will be considered invalid
-	 * @param ports TCP port numbers
-	 * @return The running server
-	 * @throws IOException If an I/O error occurs
-	 */
-	public static RedirectTarget start(String path, int... ports) throws IOException {
-		if (!path.startsWith("/")) {
-			throw new IllegalArgumentException("Path needs to be absolute");
-		}
-		ServerSocketChannel ch = null;
-		boolean success = false;
-		try {
-			ch = ServerSocketChannel.open();
-			tryBind(ch, ports);
-			ch.configureBlocking(true);
-			success = true;
-			return new RedirectTarget(ch, path);
-		} finally {
-			if (!success && ch != null) {
-				ch.close();
-			}
-		}
-	}
+    /**
+     * Spawns a server on one of the given ports, ready to accept connections.
+     * <p>
+     * If one or many {@code ports} are specified, an attempt is made to bind to the first available port. If omitted,
+     * a system-assigned port is used.
+     *
+     * @param path  The path to listen on. All other requests will be considered invalid
+     * @param ports TCP port numbers
+     * @return The running server
+     * @throws IOException If an I/O error occurs
+     */
+    public static RedirectTarget start(String path, int... ports) throws IOException {
+        if (!path.startsWith("/")) {
+            throw new IllegalArgumentException("Path needs to be absolute");
+        }
+        ServerSocketChannel ch = null;
+        boolean success = false;
+        try {
+            ch = ServerSocketChannel.open();
+            tryBind(ch, ports);
+            ch.configureBlocking(true);
+            success = true;
+            return new RedirectTarget(ch, path);
+        } finally {
+            if (!success && ch != null) {
+                ch.close();
+            }
+        }
+    }
 
-	@VisibleForTesting
-	static void tryBind(ServerSocketChannel ch, int... ports) throws IOException {
-		if (ports.length == 0) {
-			ch.bind(new InetSocketAddress(LOOPBACK_ADDR, 0));
-		} else {
-			for (int port : ports) {
-				try {
-					ch.bind(new InetSocketAddress(LOOPBACK_ADDR, port));
-					return;
-				} catch (AlreadyBoundException e) {
-					// try next
-				}
-			}
-			throw new AlreadyBoundException();
-		}
-	}
+    @VisibleForTesting
+    static void tryBind(ServerSocketChannel ch, int... ports) throws IOException {
+        if (ports.length == 0) {
+            ch.bind(new InetSocketAddress(LOOPBACK_ADDR, 0));
+        } else {
+            for (int port : ports) {
+                try {
+                    ch.bind(new InetSocketAddress(LOOPBACK_ADDR, port));
+                    return;
+                } catch (AlreadyBoundException e) {
+                    // try next
+                }
+            }
+            throw new AlreadyBoundException();
+        }
+    }
 
-	public void setSuccessResponse(Response successResponse) {
-		this.successResponse = Objects.requireNonNull(successResponse);
-	}
+    public void setSuccessResponse(Response successResponse) {
+        this.successResponse = Objects.requireNonNull(successResponse);
+    }
 
-	public void setErrorResponse(Response errorResponse) {
-		this.errorResponse = Objects.requireNonNull(errorResponse);
-	}
+    public void setErrorResponse(Response errorResponse) {
+        this.errorResponse = Objects.requireNonNull(errorResponse);
+    }
 
-	public URI getRedirectUri() {
-		try {
-			// use 127.0.0.1, not "localhost", see https://datatracker.ietf.org/doc/html/rfc8252#section-8.3
-			return new URI("http", null, LOOPBACK_ADDR.getHostAddress(), serverChannel.socket().getLocalPort(), path, null, null);
-		} catch (URISyntaxException e) {
-			throw new IllegalArgumentException(e);
-		}
-	}
+    public URI getRedirectUri() {
+        try {
+            // use 127.0.0.1, not "localhost", see https://datatracker.ietf.org/doc/html/rfc8252#section-8.3
+            return new URI("http", null, LOOPBACK_ADDR.getHostAddress(), serverChannel.socket().getLocalPort(), path, null, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
 
-	public String getCsrfToken() {
-		return csrfToken;
-	}
+    public String getCsrfToken() {
+        return csrfToken;
+    }
 
-	/**
-	 * Waits for the first HTTP request made on {@link #getRedirectUri() the redirect URI}, discards everything but the
-	 * request URI and extracts the response parameters from its query string.
-	 *
-	 * @return The authorization code
-	 * @throws IOException In case of I/O errors when communicating with the user agent
-	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2">RFC 6749, 4.1.2. Authorization Response</a>
-	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1">RFC 6749, 4.1.2.1 Error Response</a>
-	 */
-	@Blocking
-	public String receive() throws IOException {
-		var client = serverChannel.accept();
-		try (var reader = new BufferedReader(Channels.newReader(client, StandardCharsets.US_ASCII));
-			 var writer = Channels.newWriter(client, StandardCharsets.UTF_8)) {
-			var requestLine = reader.readLine();
-			final URI requestUri;
-			try {
-				requestUri = parseRequestLine(requestLine);
-			} catch (InvalidRequestException e) {
-				e.suggestedResponse.write(writer);
-				throw new IOException("Unparseable Request", e);
-			}
-			if (!Path.of(path).equals(Path.of(requestUri.getPath()))) {
-				Response.empty(Response.Status.NOT_FOUND).write(writer);
-				throw new IOException("Requested invalid path " + requestUri);
-			}
+    /**
+     * Waits for the first HTTP request made on {@link #getRedirectUri() the redirect URI}, discards everything but the
+     * request URI and extracts the response parameters from its query string.
+     *
+     * @return The authorization code
+     * @throws IOException In case of I/O errors when communicating with the user agent
+     * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2">RFC 6749, 4.1.2. Authorization Response</a>
+     * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1">RFC 6749, 4.1.2.1 Error Response</a>
+     */
+    @Blocking
+    public String receive() throws IOException {
+        var client = serverChannel.accept();
+        try (var reader = new BufferedReader(Channels.newReader(client, StandardCharsets.US_ASCII));
+             var writer = Channels.newWriter(client, StandardCharsets.UTF_8)) {
+            var requestLine = reader.readLine();
+            final URI requestUri;
+            try {
+                requestUri = parseRequestLine(requestLine);
+            } catch (InvalidRequestException e) {
+                e.suggestedResponse.write(writer);
+                throw new IOException("Unparseable Request", e);
+            }
+            if (!Path.of(path).equals(Path.of(requestUri.getPath()))) {
+                Response.empty(Response.Status.NOT_FOUND).write(writer);
+                throw new IOException("Requested invalid path " + requestUri);
+            }
 
-			var params = URIUtil.parseQueryString(requestUri.getRawQuery());
-			if (!csrfToken.equals(params.get("state"))) {
-				Response.empty(Response.Status.BAD_REQUEST).write(writer);
-				throw new IOException("Missing or invalid state token");
-			} else if (params.containsKey("error")) {
+            var params = URIUtil.parseQueryString(requestUri.getRawQuery());
+            if (!csrfToken.equals(params.get("state"))) {
+                Response.empty(Response.Status.BAD_REQUEST).write(writer);
+                throw new IOException("Missing or invalid state token");
+            } else if (params.containsKey("error")) {
 //				var html = "<html><body>" + params.get("error") + "</body></html>";
 //				Response.html(Response.Status.OK, html).write(writer);
-				errorResponse.write(writer); // TODO insert error code?
-				throw new IOException("Authorization failed"); // TODO more specific exception containing the error code
-			} else if (params.containsKey("code")) {
-				successResponse.write(writer);
-				return params.get("code");
-			} else {
-				Response.empty(Response.Status.BAD_REQUEST).write(writer);
-				throw new IOException("Missing authorization code");
-			}
-		}
-	}
+                errorResponse.write(writer); // TODO insert error code?
+                throw new IOException("Authorization failed"); // TODO more specific exception containing the error code
+            } else if (params.containsKey("code")) {
+                successResponse.write(writer);
+                return params.get("code");
+            } else {
+                Response.empty(Response.Status.BAD_REQUEST).write(writer);
+                throw new IOException("Missing authorization code");
+            }
+        }
+    }
 
-	/**
-	 * Attempts to parse the given request line and extract the request URI.
-	 *
-	 * @param requestLine A HTTP request line as specified in <a href="https://datatracker.ietf.org/doc/html/rfc2616#section-5.1">RFC 2616 Section 5.1</a>
-	 * @return The request URI
-	 * @throws InvalidRequestException Thrown when the request line is malformed
-	 */
-	@VisibleForTesting
-	static URI parseRequestLine(String requestLine) throws InvalidRequestException {
-		var words = requestLine.split(" ");
-		if (words.length < 3) {
-			throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
-		}
-		var method = words[0];
-		if (!"GET".equals(method)) {
-			throw new InvalidRequestException(Response.empty(Response.Status.METHOD_NOT_ALLOWED));
-		}
-		try {
-			return new URI(words[1]);
-		} catch (URISyntaxException e) {
-			throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
-		}
-	}
+    /**
+     * Attempts to parse the given request line and extract the request URI.
+     *
+     * @param requestLine A HTTP request line as specified in <a href="https://datatracker.ietf.org/doc/html/rfc2616#section-5.1">RFC 2616 Section 5.1</a>
+     * @return The request URI
+     * @throws InvalidRequestException Thrown when the request line is malformed
+     */
+    @VisibleForTesting
+    static URI parseRequestLine(String requestLine) throws InvalidRequestException {
+        var words = requestLine.split(" ");
+        if (words.length < 3) {
+            throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
+        }
+        var method = words[0];
+        if (!"GET".equals(method)) {
+            throw new InvalidRequestException(Response.empty(Response.Status.METHOD_NOT_ALLOWED));
+        }
+        try {
+            return new URI(words[1]);
+        } catch (URISyntaxException e) {
+            throw new InvalidRequestException(Response.empty(Response.Status.BAD_REQUEST));
+        }
+    }
 
-	/**
-	 * Shuts down this server and releases the port it has been bound to.
-	 *
-	 * @throws IOException If an I/O error occurs
-	 */
-	@Override
-	public void close() throws IOException {
-		serverChannel.close();
-	}
+    /**
+     * Shuts down this server and releases the port it has been bound to.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    @Override
+    public void close() throws IOException {
+        serverChannel.close();
+    }
 
 }

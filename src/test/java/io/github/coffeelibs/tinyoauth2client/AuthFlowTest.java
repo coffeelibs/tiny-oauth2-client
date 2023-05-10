@@ -7,6 +7,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -285,28 +286,35 @@ public class AuthFlowTest {
             }
 
             @Test
-            @DisplayName("getAccessTokenAsync(executor) sends access token request")
+            @DisplayName("getAccessTokenAsync(httpClient) sends access token request")
             public void testGetAccessTokenAsync() {
                 var authFlowWithCode = Mockito.spy(authFlow.new AuthFlowWithCode("redirect-uri", "auth-code"));
-                var executor = Mockito.mock(Executor.class);
                 var httpClient = Mockito.mock(HttpClient.class);
-                var httpClientBuilder = Mockito.mock(HttpClient.Builder.class);
                 var httpRequest = Mockito.mock(HttpRequest.class);
                 var httpRespone = Mockito.mock(HttpResponse.class);
-                try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
-                    httpClientClass.when(HttpClient::newBuilder).thenReturn(httpClientBuilder);
-                    Mockito.doReturn(httpClient).when(httpClientBuilder).build();
-                    Mockito.doReturn(httpClientBuilder).when(httpClientBuilder).executor(Mockito.any());
-                    Mockito.doReturn(httpRequest).when(authFlowWithCode).buildTokenRequest();
-                    Mockito.doReturn(CompletableFuture.completedFuture(httpRespone)).when(httpClient).sendAsync(Mockito.any(), Mockito.any());
+                Mockito.doReturn(httpRequest).when(authFlowWithCode).buildTokenRequest();
+                Mockito.doReturn(CompletableFuture.completedFuture(httpRespone)).when(httpClient).sendAsync(Mockito.any(), Mockito.any());
 
-                    var result = authFlowWithCode.getAccessTokenAsync(executor);
+                var result = authFlowWithCode.getAccessTokenAsync(httpClient);
 
-                    Assertions.assertEquals(httpRespone, result.join());
-                    Mockito.verify(authFlowWithCode).buildTokenRequest();
-                    Mockito.verify(httpClientBuilder).executor(executor);
-                    Mockito.verify(httpClient).sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString());
-                }
+                Assertions.assertEquals(httpRespone, result.join());
+                Mockito.verify(authFlowWithCode).buildTokenRequest();
+                Mockito.verify(httpClient).sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString());
+            }
+
+            @Test
+            @DisplayName("getAccessTokenAsync(executor) delegates to getAccessTokenAsync(httpClient)")
+            public void testGetAccessTokenAsync2() {
+                var authFlowWithCode = Mockito.spy(authFlow.new AuthFlowWithCode("redirect-uri", "auth-code"));
+                var executor = Mockito.mock(Executor.class);
+                var httpRespone = Mockito.mock(HttpResponse.class);
+                Mockito.doReturn(CompletableFuture.completedFuture(httpRespone)).when(authFlowWithCode).getAccessTokenAsync((HttpClient) Mockito.any());
+
+                authFlowWithCode.getAccessTokenAsync(executor);
+
+                ArgumentCaptor<HttpClient> httpClientCaptor = ArgumentCaptor.forClass(HttpClient.class);
+                Mockito.verify(authFlowWithCode).getAccessTokenAsync(httpClientCaptor.capture());
+                Assertions.assertEquals(executor, httpClientCaptor.getValue().executor().get());
             }
 
             @Test
@@ -334,7 +342,7 @@ public class AuthFlowTest {
     }
 
     @Test
-    @DisplayName("authorizeAsync(...) runs requestAuthCode() and getAccessToken()")
+    @DisplayName("authorizeAsync(httpClient,...) runs requestAuthCode() and getAccessToken()")
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsync() throws IOException, ExecutionException, InterruptedException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
@@ -349,6 +357,22 @@ public class AuthFlowTest {
         var result = authFlow.authorizeAsync(httpClient, browser);
 
         Assertions.assertEquals(httpResponse, result.get());
+    }
+
+
+    @Test
+    @DisplayName("authorizeAsync(executor, ...) delegates to authorizeAsync(httpClient,...) with executor set in httpClient")
+    @SuppressWarnings("unchecked")
+    public void testAuthorizeAsync2() throws IOException, ExecutionException, InterruptedException {
+        var executor = Mockito.mock(Executor.class);
+        Consumer<URI> browser = Mockito.mock(Consumer.class);
+        var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
+
+        authFlow.authorizeAsync(executor, browser);
+        ArgumentCaptor<HttpClient> httpClientCaptor = ArgumentCaptor.forClass(HttpClient.class);
+
+        Mockito.verify(authFlow).authorizeAsync(httpClientCaptor.capture(), Mockito.eq(browser));
+        Assertions.assertEquals(executor, httpClientCaptor.getValue().executor().get());
     }
 
     @Test
@@ -374,7 +398,6 @@ public class AuthFlowTest {
         var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
         var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
         Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
-        Mockito.doReturn(CompletableFuture.failedFuture(new IOException("error"))).when(authFlowWithCode).getAccessTokenAsync((Executor) Mockito.any());
 
         var result = authFlow.authorizeAsync(Runnable::run, browser);
 

@@ -47,7 +47,8 @@ public class TinyOAuth2Client {
     }
 
     /**
-     * Refreshes an access token using the given {@code refreshToken}.
+     * Refreshes an access token using the given {@code refreshToken}. The request is made by the default http client returned by
+     * {@link HttpClient#newHttpClient()} but on the given executor.
      *
      * @param executor     The executor to run the async tasks
      * @param refreshToken The refresh token
@@ -56,11 +57,26 @@ public class TinyOAuth2Client {
      * @see #refresh(String, String...)
      */
     public CompletableFuture<HttpResponse<String>> refreshAsync(@BlockingExecutor Executor executor, String refreshToken, String... scopes) {
-        return HttpClient.newBuilder().executor(executor).build().sendAsync(buildRefreshTokenRequest(refreshToken, scopes), HttpResponse.BodyHandlers.ofString());
+        return refreshAsync(HttpClient.newBuilder().executor(executor).build(), refreshToken, scopes);
     }
 
     /**
-     * Refreshes an access token using the given {@code refreshToken}.
+     * Refreshes an access token using the given {@code refreshToken}. The request is made by the given {@link HttpClient}.
+     * <p>
+     * The executor used to send the request and handle the response is the same specified in {@link HttpClient.Builder#executor(Executor)}
+     *
+     * @param httpClient   The http client used to send the request
+     * @param refreshToken The refresh token
+     * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+     * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+     * @see #refresh(String, String...)
+     */
+    public CompletableFuture<HttpResponse<String>> refreshAsync(HttpClient httpClient, String refreshToken, String... scopes) {
+        return httpClient.sendAsync(buildRefreshTokenRequest(refreshToken, scopes), HttpResponse.BodyHandlers.ofString()); //TODO
+    }
+
+    /**
+     * Refreshes an access token using the given {@code refreshToken}. The request is made by the default http client returned by {@link HttpClient#newHttpClient()}.
      *
      * @param refreshToken The refresh token
      * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
@@ -72,7 +88,24 @@ public class TinyOAuth2Client {
      */
     @Blocking
     public HttpResponse<String> refresh(String refreshToken, String... scopes) throws IOException, InterruptedException {
-        return HttpClient.newHttpClient().send(buildRefreshTokenRequest(refreshToken, scopes), HttpResponse.BodyHandlers.ofString());
+        return refresh(HttpClient.newHttpClient(), refreshToken, scopes);
+    }
+
+    /**
+     * Refreshes an access token using the given {@code refreshToken}. The request is made by the given {@link HttpClient}.
+     *
+     * @param httpClient   The http client used to send the request
+     * @param refreshToken The refresh token
+     * @param scopes       The desired access token <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
+     * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
+     * @throws IOException          In case of I/O errors when communicating with the token endpoint
+     * @throws InterruptedException When this thread is interrupted before a response is received
+     * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-6">RFC 6749 Section 6: Refreshing an Access Token</a>
+     * @see #refreshAsync(Executor, String, String...)
+     */
+    @Blocking
+    public HttpResponse<String> refresh(HttpClient httpClient, String refreshToken, String... scopes) throws IOException, InterruptedException {
+        return httpClient.send(buildRefreshTokenRequest(refreshToken, scopes), HttpResponse.BodyHandlers.ofString()); //TODO
     }
 
     @VisibleForTesting

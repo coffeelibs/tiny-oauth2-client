@@ -6,17 +6,17 @@ import java.util.Objects;
 
 class EmptyResponse implements Response {
 
-	private final Status status;
+    private final Status status;
 
-	public EmptyResponse(Response.Status status) {
-		this.status = Objects.requireNonNull(status);
-	}
+    public EmptyResponse(Response.Status status) {
+        this.status = Objects.requireNonNull(status);
+    }
 
-	@Override
-	public void write(Writer writer) throws IOException {
-		writer.write("HTTP/1.1 " + status.code + " " + status.reason + "\n");
-		writer.write("Connection: Close\n");
-		writer.write("\n");
-	}
+    @Override
+    public void write(Writer writer) throws IOException {
+        writer.write("HTTP/1.1 " + status.code + " " + status.reason + "\n");
+        writer.write("Connection: Close\n");
+        writer.write("\n");
+    }
 
 }

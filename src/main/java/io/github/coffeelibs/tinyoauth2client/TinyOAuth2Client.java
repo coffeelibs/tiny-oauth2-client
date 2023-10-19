@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -21,6 +22,8 @@ import java.util.concurrent.Executor;
 @ApiStatus.Experimental
 public class TinyOAuth2Client {
 
+    private static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(30);
+
     /**
      * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.2">Client Identifier</a>
      */
@@ -31,9 +34,29 @@ public class TinyOAuth2Client {
      */
     final URI tokenEndpoint;
 
+    /**
+     * Timeout of HTTP requests
+     */
+    final Duration requestTimeout;
+
     TinyOAuth2Client(String clientId, URI tokenEndpoint) {
+        this(clientId, tokenEndpoint, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    private TinyOAuth2Client(String clientId, URI tokenEndpoint, Duration requestTimeout) {
         this.clientId = Objects.requireNonNull(clientId);
         this.tokenEndpoint = Objects.requireNonNull(tokenEndpoint);
+        this.requestTimeout = Objects.requireNonNull(requestTimeout);
+    }
+
+    /**
+     * Creates a new OAuth2 Client with the specified request timeout
+     * @param requestTimeout HTTP request timeout
+     * @return A new client
+     * @since 0.7.0
+     */
+    public TinyOAuth2Client withRequestTimeout(Duration requestTimeout) {
+        return new TinyOAuth2Client(this.clientId, this.tokenEndpoint, requestTimeout);
     }
 
     /**
@@ -130,6 +153,7 @@ public class TinyOAuth2Client {
         return HttpRequest.newBuilder(tokenEndpoint) //
                 .header("Content-Type", "application/x-www-form-urlencoded") //
                 .POST(HttpRequest.BodyPublishers.ofString(urlencodedParams)) //
+                .timeout(requestTimeout) //
                 .build();
     }
 

@@ -201,7 +201,7 @@ public class AuthFlowTest {
             authFlow = new AuthFlow(client, authEndpoint, pkce);
             redirectTarget = Mockito.mock(RedirectTarget.class);
             redirectTargetClass = Mockito.mockStatic(RedirectTarget.class);
-            redirectTargetClass.when(() -> RedirectTarget.start(Mockito.any(), Mockito.any())).thenReturn(redirectTarget);
+            redirectTargetClass.when(() -> RedirectTarget.start(Mockito.any(), Mockito.any(int[].class))).thenReturn(redirectTarget);
             browser = Mockito.mock(Consumer.class);
 
             var redirected = new CountDownLatch(1);
@@ -351,7 +351,7 @@ public class AuthFlowTest {
         var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
         var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
         var httpResponse = Mockito.mock(HttpResponse.class);
-        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
+        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any());
         Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(authFlowWithCode).getAccessTokenAsync((HttpClient) Mockito.any());
 
         var result = authFlow.authorizeAsync(httpClient, browser);
@@ -363,7 +363,7 @@ public class AuthFlowTest {
     @Test
     @DisplayName("authorizeAsync(executor, ...) delegates to authorizeAsync(httpClient,...) with executor set in httpClient")
     @SuppressWarnings("unchecked")
-    public void testAuthorizeAsync2() throws IOException, ExecutionException, InterruptedException {
+    public void testAuthorizeAsync2() {
         var executor = Mockito.mock(Executor.class);
         Consumer<URI> browser = Mockito.mock(Consumer.class);
         var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
@@ -382,7 +382,7 @@ public class AuthFlowTest {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
         //var executor = Mockito.mock(Executor.class);
         var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
-        Mockito.doThrow(new IOException("error")).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
+        Mockito.doThrow(new IOException("error")).when(authFlow).requestAuthCode(Mockito.any());
 
         var result = authFlow.authorizeAsync(Runnable::run, browser);
 
@@ -397,7 +397,7 @@ public class AuthFlowTest {
         //var executor = Mockito.mock(Executor.class);
         var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
         var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
-        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
+        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any());
 
         var result = authFlow.authorizeAsync(Runnable::run, browser);
 
@@ -413,7 +413,7 @@ public class AuthFlowTest {
         var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
         var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
         var httpResponse = Mockito.mock(HttpResponse.class);
-        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any(), Mockito.any());
+        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any());
         Mockito.doReturn(httpResponse).when(authFlowWithCode).getAccessToken(httpClient);
 
         var result = authFlow.authorize(httpClient, browser);

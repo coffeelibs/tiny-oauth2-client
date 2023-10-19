@@ -33,7 +33,7 @@ public class TinyOAuth2ClientTest {
 
     @Test
     @DisplayName("refreshAsync(executor, \"r3fr3sh70k3n\") sends refresh token request")
-    public void testRefreshAsync() throws ExecutionException {
+    public void testRefreshAsync() {
         var tokenEndpoint = URI.create("http://example.com/oauth2/token");
         var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
         var executor = Mockito.mock(Executor.class);
@@ -59,7 +59,7 @@ public class TinyOAuth2ClientTest {
 
     @Test
     @DisplayName("refreshAsync(executor, \"r3fr3sh70k3n\", \"foo\", \"bar\") sends refresh token request")
-    public void testRefreshAsyncWithScopes() throws ExecutionException {
+    public void testRefreshAsyncWithScopes() {
         var tokenEndpoint = URI.create("http://example.com/oauth2/token");
         var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
         var executor = Mockito.mock(Executor.class);
@@ -71,7 +71,7 @@ public class TinyOAuth2ClientTest {
             httpClientClass.when(HttpClient::newBuilder).thenReturn(httpClientBuilder);
             Mockito.doReturn(httpClient).when(httpClientBuilder).build();
             Mockito.doReturn(httpClientBuilder).when(httpClientBuilder).executor(Mockito.any());
-            Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest(Mockito.any(), Mockito.any());
+            Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest("r3fr3sh70k3n", "foo", "bar");
             Mockito.doReturn(CompletableFuture.completedFuture(httpRespone)).when(httpClient).sendAsync(Mockito.any(), Mockito.any());
 
             var result = client.refreshAsync(executor, "r3fr3sh70k3n", "foo", "bar");
@@ -93,7 +93,7 @@ public class TinyOAuth2ClientTest {
         var httpRespone = Mockito.mock(HttpResponse.class);
         try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
             httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
-            Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest(Mockito.any());
+            Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest("r3fr3sh70k3n");
             Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
 
             var result = client.refresh("r3fr3sh70k3n");
@@ -114,7 +114,7 @@ public class TinyOAuth2ClientTest {
         var httpRespone = Mockito.mock(HttpResponse.class);
         try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
             httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
-            Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest(Mockito.any(), Mockito.any());
+            Mockito.doReturn(httpRequest).when(client).buildRefreshTokenRequest("r3fr3sh70k3n", "foo", "bar");
             Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
 
             var result = client.refresh("r3fr3sh70k3n", "foo", "bar");

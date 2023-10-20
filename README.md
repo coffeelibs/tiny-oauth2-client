@@ -27,7 +27,7 @@ Configure your authorization server to allow `http://127.0.0.1/*` as a redirect 
 // this library will just perform the Authorization Flow:
 var httpResponse = TinyOAuth2.client("oauth-client-id")
 		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
-        .withRequestTimeout(Duration.ofSeconds(10)) // optional
+		.withRequestTimeout(Duration.ofSeconds(10)) // optional
 		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
 		.authorize(uri -> System.out.println("Please login on " + uri));
 

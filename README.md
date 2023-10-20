@@ -27,6 +27,7 @@ Configure your authorization server to allow `http://127.0.0.1/*` as a redirect 
 // this library will just perform the Authorization Flow:
 var httpResponse = TinyOAuth2.client("oauth-client-id")
 		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
+        .withRequestTimeout(Duration.ofSeconds(10)) // optional
 		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
 		.authorize(uri -> System.out.println("Please login on " + uri));
 
@@ -36,6 +37,17 @@ if (httpResponse.statusCode() == 200) {
 	var bearerToken = parseJson(jsonString).get("access_token");
 	// ...
 }
+```
+
+If you wish to use a proxy or your own set of root certificates, provide your own JDK [http client](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.html):
+```java
+var httpClient = HttpClient.newBuilder()
+        .proxy(ProxySelector.of(InetSocketAddress.createUnresolved("https:\\example.com",1337)))
+        .build();
+var httpResponse = TinyOAuth2.client("oauth-client-id")
+		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
+		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
+		.authorize(httpClient, uri -> System.out.println("Please login on " + uri));
 ```
 
 If your authorization server doesn't allow wildcards, you can also configure a fixed path (and even port) via e.g. `setRedirectPath("/callback")` and `setRedirectPorts(8080)`.

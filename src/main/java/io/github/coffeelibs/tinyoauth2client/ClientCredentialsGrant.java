@@ -1,6 +1,8 @@
 package io.github.coffeelibs.tinyoauth2client;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.NonBlocking;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
@@ -48,6 +50,7 @@ public class ClientCredentialsGrant {
 	 * @throws InterruptedException When this thread is interrupted before a response is received
 	 * @see #authorizeAsync(HttpClient, String...)
 	 */
+	@Blocking
 	public HttpResponse<String> authorize(HttpClient httpClient, String... scopes) throws IOException, InterruptedException {
 		var req = buildTokenRequest(Set.of(scopes));
 		return httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -61,6 +64,7 @@ public class ClientCredentialsGrant {
 	 * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
 	 * @see #authorize(HttpClient, String...)
 	 */
+	@NonBlocking
 	public CompletableFuture<HttpResponse<String>> authorizeAsync(HttpClient httpClient, String... scopes) {
 		var req = buildTokenRequest(Set.of(scopes));
 		return httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofString());

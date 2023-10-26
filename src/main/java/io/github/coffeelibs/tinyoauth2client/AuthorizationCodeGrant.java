@@ -121,23 +121,6 @@ public class AuthorizationCodeGrant {
      * <p>
      * Then, the received authorization code is used to make an
      * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
-     *
-     * @param executor The executor to run the async tasks
-     * @param browser  An async callback (not blocking the executor) that opens a web browser with the URI it consumes
-     * @param scopes   The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-     * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-     * @see #authorize(Consumer, String...)
-     */
-    public CompletableFuture<HttpResponse<String>> authorizeAsync(@BlockingExecutor Executor executor, Consumer<URI> browser, String... scopes) {
-        return authorizeAsync(HttpClient.newBuilder().executor(executor).build(), browser, scopes);
-    }
-
-    /**
-     * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
-     * <p>
-     * Then, the received authorization code is used to make an
-     * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
      * <p>
      * The executor used to the request the auth code and get the access token is the same specified in {@link HttpClient.Builder#executor(Executor)}. If the given http client does not provide an executor via {@link HttpClient#executor()}, a default single thread executor is used for requesting the authorization code.
      *
@@ -145,7 +128,7 @@ public class AuthorizationCodeGrant {
      * @param browser    An async callback (not blocking the executor) that opens a web browser with the URI it consumes
      * @param scopes     The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
      * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-     * @see #authorize(Consumer, String...)
+     * @see #authorize(HttpClient, Consumer, String...)
      */
     public CompletableFuture<HttpResponse<String>> authorizeAsync(HttpClient httpClient, Consumer<URI> browser, String... scopes) {
         return CompletableFuture.supplyAsync(() -> {
@@ -164,32 +147,13 @@ public class AuthorizationCodeGrant {
      * Then, the received authorization code is used to make an
      * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
      *
-     * @param browser An async callback (not blocking this thread) that opens a web browser with the URI it consumes
-     * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-     * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-     * @throws IOException          In case of I/O errors when communicating with the token endpoint
-     * @throws InterruptedException When this thread is interrupted before a response is received
-     * @see #authorizeAsync(Executor, Consumer, String...)
-     */
-    @Blocking
-    public HttpResponse<String> authorize(Consumer<URI> browser, String... scopes) throws IOException, InterruptedException {
-        return authorize(HttpClient.newHttpClient(), browser, scopes);
-    }
-
-    /**
-     * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
-     * <p>
-     * Then, the received authorization code is used to make an
-     * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
-     *
      * @param httpClient The http client used to recieve the authorization code
      * @param browser    An async callback (not blocking this thread) that opens a web browser with the URI it consumes
      * @param scopes     The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
      * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
      * @throws IOException          In case of I/O errors when communicating with the token endpoint
      * @throws InterruptedException When this thread is interrupted before a response is received
-     * @see #authorizeAsync(Executor, Consumer, String...)
+     * @see #authorizeAsync(HttpClient, Consumer, String...)
      */
     @Blocking
     public HttpResponse<String> authorize(HttpClient httpClient, Consumer<URI> browser, String... scopes) throws IOException, InterruptedException {

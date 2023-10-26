@@ -341,31 +341,17 @@ public class AuthorizationCodeGrantTest {
         Assertions.assertEquals(httpResponse, result.get());
     }
 
-
-    @Test
-    @DisplayName("authorizeAsync(executor, ...) delegates to authorizeAsync(httpClient,...) with executor set in httpClient")
-    @SuppressWarnings("unchecked")
-    public void testAuthorizeAsync2() {
-        var executor = Mockito.mock(Executor.class);
-        Consumer<URI> browser = Mockito.mock(Consumer.class);
-        var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
-
-        grant.authorizeAsync(executor, browser);
-        ArgumentCaptor<HttpClient> httpClientCaptor = ArgumentCaptor.forClass(HttpClient.class);
-
-        Mockito.verify(grant).authorizeAsync(httpClientCaptor.capture(), Mockito.eq(browser));
-        Assertions.assertEquals(executor, httpClientCaptor.getValue().executor().get());
-    }
-
     @Test
     @DisplayName("authorizeAsync(...) returns failed future on error during requestAuthCode(...)")
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsyncWithError1() throws IOException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
+        var httpClient = HttpClient.newBuilder().executor(Runnable::run).build();
         var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
         Mockito.doThrow(new IOException("error")).when(grant).requestAuthCode(Mockito.any());
 
-        var result = grant.authorizeAsync(Runnable::run, browser);
+
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertTrue(result.isCompletedExceptionally());
     }
@@ -375,12 +361,12 @@ public class AuthorizationCodeGrantTest {
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsyncWithError2() throws IOException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
-        //var executor = Mockito.mock(Executor.class);
+        var httpClient = HttpClient.newBuilder().executor(Runnable::run).build();
         var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
         var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
         Mockito.doReturn(grantWithCode).when(grant).requestAuthCode(Mockito.any());
 
-        var result = grant.authorizeAsync(Runnable::run, browser);
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertTrue(result.isCompletedExceptionally());
     }

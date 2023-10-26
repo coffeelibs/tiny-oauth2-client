@@ -63,7 +63,7 @@ public class TinyOAuth2Client {
      * Initializes a new <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Flow</a> with <a href="https://datatracker.ietf.org/doc/html/rfc7636">PKCE</a>
      *
      * @param authEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1">Authorization Endpoint</a>
-     * @return A new Authentication Flow
+     * @return A new Authorization Code Grant
      * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Flow</a>
      * @deprecated Use {@link #authorizationCodeGrant(URI)} instead, will be removed in a future version
      */
@@ -76,7 +76,7 @@ public class TinyOAuth2Client {
      * Initializes a new <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Grant</a> with <a href="https://datatracker.ietf.org/doc/html/rfc7636">PKCE</a>
      *
      * @param authEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1">Authorization Endpoint</a>
-     * @return A new Authentication Flow
+     * @return A new Authorization Code Grant
      * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Flow</a>
      */
     public AuthorizationCodeGrant authorizationCodeGrant(URI authEndpoint) {

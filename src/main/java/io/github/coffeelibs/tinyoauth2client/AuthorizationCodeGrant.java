@@ -4,7 +4,10 @@ import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
 import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
-import org.jetbrains.annotations.*;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

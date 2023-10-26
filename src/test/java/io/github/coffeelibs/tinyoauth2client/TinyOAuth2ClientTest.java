@@ -14,7 +14,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 public class TinyOAuth2ClientTest {
@@ -143,13 +142,15 @@ public class TinyOAuth2ClientTest {
     public void testBuildRefreshTokenRequest() {
         var tokenEndpoint = URI.create("http://example.com/oauth2/token");
         var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
+        var requestBuilder = Mockito.mock(HttpRequest.Builder.class);
         var request = Mockito.mock(HttpRequest.class);
-        Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
+        Mockito.doReturn(requestBuilder).when(client).createTokenRequest(Mockito.any());
+        Mockito.doReturn(request).when(requestBuilder).build();
 
         var result = client.buildRefreshTokenRequest("r3fr3sh70k3n");
 
         Assertions.assertEquals(request, result);
-        Mockito.verify(client).buildTokenRequest(Map.of(//
+        Mockito.verify(client).createTokenRequest(Map.of(//
                 "grant_type", "refresh_token", //
                 "refresh_token", "r3fr3sh70k3n", //
                 "client_id", "my-client", //
@@ -162,13 +163,15 @@ public class TinyOAuth2ClientTest {
     public void testBuildRefreshTokenRequestWithScopes() {
         var tokenEndpoint = URI.create("http://example.com/oauth2/token");
         var client = Mockito.spy(new TinyOAuth2Client("my-client", tokenEndpoint));
+        var requestBuilder = Mockito.mock(HttpRequest.Builder.class);
         var request = Mockito.mock(HttpRequest.class);
-        Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
+        Mockito.doReturn(requestBuilder).when(client).createTokenRequest(Mockito.any());
+        Mockito.doReturn(request).when(requestBuilder).build();
 
         var result = client.buildRefreshTokenRequest("r3fr3sh70k3n", "foo", "bar");
 
         Assertions.assertEquals(request, result);
-        Mockito.verify(client).buildTokenRequest(Map.of(//
+        Mockito.verify(client).createTokenRequest(Map.of(//
                 "grant_type", "refresh_token", //
                 "refresh_token", "r3fr3sh70k3n", //
                 "client_id", "my-client", //
@@ -188,7 +191,7 @@ public class TinyOAuth2ClientTest {
             uriUtilClass.when(() -> URIUtil.buildQueryString(Mockito.any())).thenReturn("query=string&mock=true");
             bodyPublishersClass.when(() -> HttpRequest.BodyPublishers.ofString(Mockito.any())).thenReturn(bodyPublisher);
 
-            var request = client.buildTokenRequest(params);
+            var request = client.createTokenRequest(params).build();
 
             uriUtilClass.verify(() -> URIUtil.buildQueryString(Mockito.same(params)));
             bodyPublishersClass.verify(() -> HttpRequest.BodyPublishers.ofString("query=string&mock=true"));

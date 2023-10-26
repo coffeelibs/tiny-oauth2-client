@@ -270,13 +270,15 @@ public class AuthorizationCodeGrantTest {
             @DisplayName("buildTokenRequest() builds new http request")
             public void testBuildTokenRequest() {
                 var grantWithCode = grant.new WithAuthorizationCode("redirect-uri", "auth-code");
+                var requestBuilder = Mockito.mock(HttpRequest.Builder.class);
                 var request = Mockito.mock(HttpRequest.class);
-                Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
+                Mockito.doReturn(requestBuilder).when(client).createTokenRequest(Mockito.any());
+                Mockito.doReturn(request).when(requestBuilder).build();
 
                 var result = grantWithCode.buildTokenRequest();
 
                 Assertions.assertEquals(request, result);
-                Mockito.verify(client).buildTokenRequest(Map.of(//
+                Mockito.verify(client).createTokenRequest(Map.of(//
                         "grant_type", "authorization_code", //
                         "client_id", client.clientId, //
                         "code_verifier", pkce.getVerifier(), //

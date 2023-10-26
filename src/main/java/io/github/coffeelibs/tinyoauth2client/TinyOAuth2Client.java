@@ -147,28 +147,27 @@ public class TinyOAuth2Client {
 
     @VisibleForTesting
     HttpRequest buildRefreshTokenRequest(String refreshToken, String... scopes) {
-        return buildTokenRequest(Map.of(//
+        return createTokenRequest(Map.of(//
                 "grant_type", "refresh_token", //
                 "refresh_token", refreshToken, //
                 "client_id", clientId, //
                 "scope", String.join(" ", scopes)
-        ));
+        )).build();
     }
 
     /**
      * Creates a new HTTP request targeting the {@link #tokenEndpoint}.
      *
      * @param parameters Parameters to send in an {@code application/x-www-form-urlencoded} request body
-     * @return A new http request
+     * @return A new http request builder
      */
     @Contract("_ -> new")
-    HttpRequest buildTokenRequest(Map<String, String> parameters) {
+    HttpRequest.Builder createTokenRequest(Map<String, String> parameters) {
         var urlencodedParams = URIUtil.buildQueryString(parameters);
         return HttpRequest.newBuilder(tokenEndpoint) //
                 .header("Content-Type", "application/x-www-form-urlencoded") //
                 .POST(HttpRequest.BodyPublishers.ofString(urlencodedParams)) //
-                .timeout(requestTimeout) //
-                .build();
+                .timeout(requestTimeout);
     }
 
 }

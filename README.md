@@ -17,40 +17,57 @@ support for [PKCE](https://datatracker.ietf.org/doc/html/rfc8252#section-8.1) an
 
 ## Usage
 
-Configure your authorization server to allow `http://127.0.0.1/*` as a redirect target and look up these configuration values:
+You begin building an OAuth 2.0 Client via the fluent API:
 
-* client identifier
-* token endpoint
-* authorization endpoint
+```java
+var oauthClient = TinyOAuth2.client("oauth-client-id") // The client identifier
+		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token")) // The token endpoint
+		.withRequestTimeout(Duration.ofSeconds(10)) // optional
+        // ...
+```
+
+Next, continue with a specific grant type by invoking `.authorizationCodeGrant(...)` or `.clientCredentialsGrant(...)` (more may be added eventually).
+
+This library requires you to provide an instance of [`java.net.http.HttpClient`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.html).
+This allows you to configure it to your needs, e.g. by applying proxy settings:
+
+```java
+var httpClient = HttpClient.newBuilder()
+    .proxy(ProxySelector.of(InetSocketAddress.createUnresolved("https:\\example.com",1337)))
+    .build();
+```
+
+### Authorization Code Grant
+Usually, you would want to use the [Authorization Code Grant](https://datatracker.ietf.org/doc/html/rfc6749#section-4.1) type to obtain access tokens.
+Configure your Authorization Server to allow `http://127.0.0.1/*` as a redirect target and look up the authorization endpoint:
 
 ```java
 // this library will just perform the Authorization Flow:
-var httpResponse = TinyOAuth2.client("oauth-client-id")
-		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
-		.withRequestTimeout(Duration.ofSeconds(10)) // optional
-		.authorizationCodeGrant(URI.create("https://login.example.com/oauth2/authorize"))
-		.authorize(uri -> System.out.println("Please login on " + uri));
-
-// from this point onwards, please proceed with the JSON/JWT parser of your choice:
-if (httpResponse.statusCode() == 200) {
-	var jsonString = httpResponse.body()
-	var bearerToken = parseJson(jsonString).get("access_token");
-	// ...
-}
-```
-
-If you wish to use a proxy or your own set of root certificates, provide your own JDK [http client](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.html):
-```java
-var httpClient = HttpClient.newBuilder()
-        .proxy(ProxySelector.of(InetSocketAddress.createUnresolved("https:\\example.com",1337)))
-        .build();
-var httpResponse = TinyOAuth2.client("oauth-client-id")
-		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
-		.authorizationCodeGrant(URI.create("https://login.example.com/oauth2/authorize"))
+var httpResponse = oauthClient.authorizationCodeGrant(URI.create("https://login.example.com/oauth2/authorize"))
 		.authorize(httpClient, uri -> System.out.println("Please login on " + uri));
 ```
 
-If your authorization server doesn't allow wildcards, you can also configure a fixed path (and even port) via e.g. `setRedirectPath("/callback")` and `setRedirectPorts(8080)`.
+If your authorization server doesn't allow wildcards, you can also configure a fixed path (and even port) via e.g. `setRedirectPath("/callback")` and `setRedirectPorts(8080)` before calling `authorize(...)`.
+
+### Client Credentials Grant
+Alternatively, if your client shall act on behalf of a service account, use the [Client Credentials Grant](https://datatracker.ietf.org/doc/html/rfc6749#section-4.4) type,
+which allows the client to authenticate directly without further user interaction: 
+
+```java
+var httpResponse = oauthClient.clientCredentialsGrant(UTF_8, "client secret")
+        .authorize(httpClient);
+```
+
+### Parsing the Response
+For maximum flexibility and minimal attack surface, this library does not include or depend on a specific parser. Instead, use a JSON or JWT parser of your choice to parse the Authorization Server's response:
+
+```java
+if (httpResponse.statusCode() == 200) {
+		var jsonString = httpResponse.body()
+		var bearerToken = parseJson(jsonString).get("access_token");
+		// ...
+}
+```
 
 ## Why this library?
 

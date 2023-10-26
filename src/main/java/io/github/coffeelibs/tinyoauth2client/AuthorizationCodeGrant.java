@@ -21,15 +21,15 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 /**
- * Simple OAuth 2.0 Authentication Code Flow with {@link PKCE}.
+ * Simple OAuth 2.0 Authorization Code Grant with {@link PKCE}.
  *
- * @see TinyOAuth2Client#authFlow(URI)
+ * @see TinyOAuth2Client#authorizationCodeGrant(URI)
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8252">RFC 8252</a>
- * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749">RFC 6749</a>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">RFC 6749, Section 4.1</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a>
  */
 @ApiStatus.Experimental
-public class AuthFlow {
+public class AuthorizationCodeGrant {
 
     /**
      * Use a system-assigned port number
@@ -52,7 +52,7 @@ public class AuthFlow {
     @VisibleForTesting
     Response errorResponse = Response.html(Response.Status.OK, "<html><body>Error</body></html>");
 
-    AuthFlow(TinyOAuth2Client client, URI authEndpoint, PKCE pkce) {
+    AuthorizationCodeGrant(TinyOAuth2Client client, URI authEndpoint, PKCE pkce) {
         this.client = Objects.requireNonNull(client);
         this.authEndpoint = Objects.requireNonNull(authEndpoint);
         this.pkce = Objects.requireNonNull(pkce);
@@ -65,7 +65,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setSuccessResponse(Response response) {
+    public AuthorizationCodeGrant setSuccessResponse(Response response) {
         this.successResponse = Objects.requireNonNull(response);
         return this;
     }
@@ -77,7 +77,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setErrorResponse(Response response) {
+    public AuthorizationCodeGrant setErrorResponse(Response response) {
         this.errorResponse = Objects.requireNonNull(response);
         return this;
     }
@@ -91,7 +91,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setRedirectPath(String path) {
+    public AuthorizationCodeGrant setRedirectPath(String path) {
         if (!path.startsWith("/")) {
             throw new IllegalArgumentException("Path should be absolute");
         }
@@ -110,7 +110,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setRedirectPort(int... ports) {
+    public AuthorizationCodeGrant setRedirectPort(int... ports) {
         this.redirectPorts = Objects.requireNonNull(ports);
         return this;
     }
@@ -154,7 +154,7 @@ public class AuthFlow {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }, httpClient.executor().orElse(ForkJoinPool.commonPool())).thenCompose(authorizedFlow -> authorizedFlow.getAccessTokenAsync(httpClient));
+        }, httpClient.executor().orElse(ForkJoinPool.commonPool())).thenCompose(authorizedGrant -> authorizedGrant.getAccessTokenAsync(httpClient));
     }
 
     /**
@@ -207,14 +207,14 @@ public class AuthFlow {
      */
     @Blocking
     @VisibleForTesting
-    AuthFlowWithCode requestAuthCode(Consumer<URI> browser, String... scopes) throws IOException {
+    WithAuthorizationCode requestAuthCode(Consumer<URI> browser, String... scopes) throws IOException {
         try (var redirectTarget = RedirectTarget.start(redirectPath, redirectPorts)) {
             redirectTarget.setSuccessResponse(successResponse);
             redirectTarget.setErrorResponse(errorResponse);
             var authUri = buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of(scopes));
             ForkJoinPool.commonPool().execute(() -> browser.accept(authUri));
             var code = redirectTarget.receive();
-            return new AuthFlowWithCode(redirectTarget.getRedirectUri().toASCIIString(), code);
+            return new WithAuthorizationCode(redirectTarget.getRedirectUri().toASCIIString(), code);
         }
     }
 
@@ -235,7 +235,7 @@ public class AuthFlow {
                 "redirect_uri", redirectEndpoint.toASCIIString()
         ));
 
-        if (scopes.size() > 0) {
+        if (!scopes.isEmpty()) {
             queryString += "&" + URIUtil.buildQueryString(Map.of("scope", String.join(" ", scopes)));
         }
         return URI.create(authEndpoint.getScheme() + "://" + authEndpoint.getRawAuthority() + authEndpoint.getRawPath() + "?" + queryString);
@@ -244,12 +244,12 @@ public class AuthFlow {
     /**
      * The successfully authenticated authentication flow, ready to retrieve an access token.
      */
-    class AuthFlowWithCode {
+    class WithAuthorizationCode {
         private final String redirectUri;
         private final String authorizationCode;
 
         @VisibleForTesting
-        AuthFlowWithCode(String redirectUri, String authorizationCode) {
+        WithAuthorizationCode(String redirectUri, String authorizationCode) {
             this.redirectUri = redirectUri;
             this.authorizationCode = authorizationCode;
         }
@@ -265,17 +265,8 @@ public class AuthFlow {
             ));
         }
 
-        public CompletableFuture<HttpResponse<String>> getAccessTokenAsync(@BlockingExecutor Executor executor) {
-            return getAccessTokenAsync(HttpClient.newBuilder().executor(executor).build());
-        }
-
         public CompletableFuture<HttpResponse<String>> getAccessTokenAsync(HttpClient httpClient) {
             return httpClient.sendAsync(buildTokenRequest(), HttpResponse.BodyHandlers.ofString());
-        }
-
-        @Blocking
-        public HttpResponse<String> getAccessToken() throws IOException, InterruptedException {
-            return getAccessToken(HttpClient.newHttpClient());
         }
 
         @Blocking

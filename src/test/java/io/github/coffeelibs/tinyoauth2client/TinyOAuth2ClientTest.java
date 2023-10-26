@@ -20,16 +20,16 @@ import java.util.concurrent.Executor;
 public class TinyOAuth2ClientTest {
 
     @Test
-    @DisplayName("authFlow(...)")
-    public void testAuthFlow() {
+    @DisplayName("authorizationCodeGrant(...)")
+    public void testAuthorizationCodeGrant() {
         var client = new TinyOAuth2Client("my-client", URI.create("http://example.com/oauth2/token"));
         var authEndpoint = URI.create("https://login.example.com/");
 
-        var authFlow = client.authFlow(authEndpoint);
+        var grant = client.authorizationCodeGrant(authEndpoint);
 
-        Assertions.assertSame(authFlow.client, client);
-        Assertions.assertSame(authFlow.authEndpoint, authEndpoint);
-        Assertions.assertNotNull(authFlow.pkce);
+        Assertions.assertSame(grant.client, client);
+        Assertions.assertSame(grant.authEndpoint, authEndpoint);
+        Assertions.assertNotNull(grant.pkce);
     }
 
     @Test

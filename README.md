@@ -28,7 +28,7 @@ Configure your authorization server to allow `http://127.0.0.1/*` as a redirect 
 var httpResponse = TinyOAuth2.client("oauth-client-id")
 		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
 		.withRequestTimeout(Duration.ofSeconds(10)) // optional
-		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
+		.authorizationCodeGrant(URI.create("https://login.example.com/oauth2/authorize"))
 		.authorize(uri -> System.out.println("Please login on " + uri));
 
 // from this point onwards, please proceed with the JSON/JWT parser of your choice:
@@ -46,7 +46,7 @@ var httpClient = HttpClient.newBuilder()
         .build();
 var httpResponse = TinyOAuth2.client("oauth-client-id")
 		.withTokenEndpoint(URI.create("https://login.example.com/oauth2/token"))
-		.authFlow(URI.create("https://login.example.com/oauth2/authorize"))
+		.authorizationCodeGrant(URI.create("https://login.example.com/oauth2/authorize"))
 		.authorize(httpClient, uri -> System.out.println("Please login on " + uri));
 ```
 

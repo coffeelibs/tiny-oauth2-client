@@ -40,7 +40,7 @@ public class TinyOAuth2ClientTest {
         var grant = client.clientCredentialsGrant(StandardCharsets.UTF_8, "open sesame");
 
         Assertions.assertSame(grant.client, client);
-        Assertions.assertEquals(grant.basicAuthHeader, "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==");
+        Assertions.assertEquals("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==", grant.basicAuthHeader);
     }
 
     @Test

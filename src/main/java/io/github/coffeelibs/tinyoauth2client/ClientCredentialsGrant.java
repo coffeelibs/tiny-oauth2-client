@@ -33,7 +33,7 @@ public class ClientCredentialsGrant {
 	@VisibleForTesting
 	final String basicAuthHeader;
 
-	public ClientCredentialsGrant(TinyOAuth2Client client, Charset charset, CharSequence clientSecret) {
+	ClientCredentialsGrant(TinyOAuth2Client client, Charset charset, CharSequence clientSecret) {
 		this.client = client;
 		this.basicAuthHeader = buildBasicAuthHeader(charset, client.clientId, clientSecret);
 	}

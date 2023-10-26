@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -29,6 +30,17 @@ public class TinyOAuth2ClientTest {
         Assertions.assertSame(grant.client, client);
         Assertions.assertSame(grant.authEndpoint, authEndpoint);
         Assertions.assertNotNull(grant.pkce);
+    }
+
+    @Test
+    @DisplayName("clientCredentialsGrant(...)")
+    public void testClientCredentialsGrant() {
+        var client = new TinyOAuth2Client("Aladdin", URI.create("http://example.com/oauth2/token"));
+
+        var grant = client.clientCredentialsGrant(StandardCharsets.UTF_8, "open sesame");
+
+        Assertions.assertSame(grant.client, client);
+        Assertions.assertEquals(grant.basicAuthHeader, "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==");
     }
 
     @Test

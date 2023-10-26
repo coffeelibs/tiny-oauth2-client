@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -84,6 +85,18 @@ public class TinyOAuth2Client {
     }
 
     /**
+     * Initializes a new <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.4">Client Credentials Grant</a>
+     *
+     * @param charset The <a href="https://datatracker.ietf.org/doc/html/rfc7617#section-2.1">charset used to encode the credentials</a>, as expected by the authorization server
+     * @param clientSecret The client secret
+     * @return A new Client Credentials Grant
+     * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.4">Client Credentials Grant</a>
+     */
+    public ClientCredentialsGrant clientCredentialsGrant(Charset charset, CharSequence clientSecret) {
+        return new ClientCredentialsGrant(this, charset, clientSecret);
+    }
+
+    /**
      * Refreshes an access token using the given {@code refreshToken}. The request is made by the default http client returned by
      * {@link HttpClient#newHttpClient()} but on the given executor.
      *
@@ -147,6 +160,7 @@ public class TinyOAuth2Client {
 
     @VisibleForTesting
     HttpRequest buildRefreshTokenRequest(String refreshToken, String... scopes) {
+        // TODO: https://datatracker.ietf.org/doc/html/rfc6749#section-6: If the client type is confidential or the client was issued client credentials [...] the client MUST authenticate
         return createTokenRequest(Map.of(//
                 "grant_type", "refresh_token", //
                 "refresh_token", refreshToken, //

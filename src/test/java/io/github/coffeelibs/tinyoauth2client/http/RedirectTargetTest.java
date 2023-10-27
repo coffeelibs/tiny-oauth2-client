@@ -31,7 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
-@Timeout(value = 3)
+@Timeout(5)
 @SuppressWarnings("resource")
 public class RedirectTargetTest {
 

@@ -3,13 +3,19 @@ package io.github.coffeelibs.tinyoauth2client;
 import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
 import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.stubbing.answers.AnswersWithDelay;
 
 import java.io.IOException;
 import java.net.URI;
@@ -22,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -324,6 +329,7 @@ public class AuthorizationCodeGrantTest {
     }
 
     @Test
+    @Timeout(3)
     @DisplayName("authorizeAsync(httpClient,...) runs requestAuthCode() and getAccessToken()")
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsync() throws IOException, ExecutionException, InterruptedException {
@@ -333,28 +339,12 @@ public class AuthorizationCodeGrantTest {
         var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
         var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
         var httpResponse = Mockito.mock(HttpResponse.class);
-        Mockito.doReturn(grantWithCode).when(grant).requestAuthCode(Mockito.any());
-        Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(grantWithCode).getAccessTokenAsync((HttpClient) Mockito.any());
+        Mockito.doAnswer(new AnswersWithDelay(1000, invocation -> grantWithCode)).when(grant).requestAuthCode(Mockito.any());
+        Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(grantWithCode).getAccessTokenAsync(Mockito.any());
 
         var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertEquals(httpResponse, result.get());
-    }
-
-
-    @Test
-    @DisplayName("authorizeAsync(executor, ...) delegates to authorizeAsync(httpClient,...) with executor set in httpClient")
-    @SuppressWarnings("unchecked")
-    public void testAuthorizeAsync2() {
-        var executor = Mockito.mock(Executor.class);
-        Consumer<URI> browser = Mockito.mock(Consumer.class);
-        var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
-
-        grant.authorizeAsync(executor, browser);
-        ArgumentCaptor<HttpClient> httpClientCaptor = ArgumentCaptor.forClass(HttpClient.class);
-
-        Mockito.verify(grant).authorizeAsync(httpClientCaptor.capture(), Mockito.eq(browser));
-        Assertions.assertEquals(executor, httpClientCaptor.getValue().executor().get());
     }
 
     @Test
@@ -362,10 +352,12 @@ public class AuthorizationCodeGrantTest {
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsyncWithError1() throws IOException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
+        var httpClient = HttpClient.newBuilder().executor(Runnable::run).build();
         var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
         Mockito.doThrow(new IOException("error")).when(grant).requestAuthCode(Mockito.any());
 
-        var result = grant.authorizeAsync(Runnable::run, browser);
+
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertTrue(result.isCompletedExceptionally());
     }
@@ -375,12 +367,12 @@ public class AuthorizationCodeGrantTest {
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsyncWithError2() throws IOException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
-        //var executor = Mockito.mock(Executor.class);
+        var httpClient = HttpClient.newBuilder().executor(Runnable::run).build();
         var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
         var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
         Mockito.doReturn(grantWithCode).when(grant).requestAuthCode(Mockito.any());
 
-        var result = grant.authorizeAsync(Runnable::run, browser);
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertTrue(result.isCompletedExceptionally());
     }

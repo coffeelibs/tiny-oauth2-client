@@ -4,7 +4,11 @@ import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
 import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.RandomUtil;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
-import org.jetbrains.annotations.*;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Blocking;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NonBlocking;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,15 +25,15 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 /**
- * Simple OAuth 2.0 Authentication Code Flow with {@link PKCE}.
+ * Simple OAuth 2.0 Authorization Code Grant with {@link PKCE}.
  *
- * @see TinyOAuth2Client#authFlow(URI)
+ * @see TinyOAuth2Client#authorizationCodeGrant(URI)
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8252">RFC 8252</a>
- * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749">RFC 6749</a>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">RFC 6749, Section 4.1</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a>
  */
 @ApiStatus.Experimental
-public class AuthFlow {
+public class AuthorizationCodeGrant {
 
     /**
      * Use a system-assigned port number
@@ -52,7 +56,7 @@ public class AuthFlow {
     @VisibleForTesting
     Response errorResponse = Response.html(Response.Status.OK, "<html><body>Error</body></html>");
 
-    AuthFlow(TinyOAuth2Client client, URI authEndpoint, PKCE pkce) {
+    AuthorizationCodeGrant(TinyOAuth2Client client, URI authEndpoint, PKCE pkce) {
         this.client = Objects.requireNonNull(client);
         this.authEndpoint = Objects.requireNonNull(authEndpoint);
         this.pkce = Objects.requireNonNull(pkce);
@@ -65,7 +69,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setSuccessResponse(Response response) {
+    public AuthorizationCodeGrant setSuccessResponse(Response response) {
         this.successResponse = Objects.requireNonNull(response);
         return this;
     }
@@ -77,7 +81,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setErrorResponse(Response response) {
+    public AuthorizationCodeGrant setErrorResponse(Response response) {
         this.errorResponse = Objects.requireNonNull(response);
         return this;
     }
@@ -91,7 +95,7 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setRedirectPath(String path) {
+    public AuthorizationCodeGrant setRedirectPath(String path) {
         if (!path.startsWith("/")) {
             throw new IllegalArgumentException("Path should be absolute");
         }
@@ -110,70 +114,35 @@ public class AuthFlow {
      * @return this
      */
     @Contract("!null -> this")
-    public AuthFlow setRedirectPort(int... ports) {
+    public AuthorizationCodeGrant setRedirectPort(int... ports) {
         this.redirectPorts = Objects.requireNonNull(ports);
         return this;
     }
 
     /**
-     * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
+     * Asks the given {@code browser} to browse the authorization URI. As soon as the browser is
+     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>, the
+     * received authorization code is used to make an <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
      * <p>
-     * Then, the received authorization code is used to make an
-     * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
-     *
-     * @param executor The executor to run the async tasks
-     * @param browser  An async callback (not blocking the executor) that opens a web browser with the URI it consumes
-     * @param scopes   The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-     * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-     * @see #authorize(Consumer, String...)
-     */
-    public CompletableFuture<HttpResponse<String>> authorizeAsync(@BlockingExecutor Executor executor, Consumer<URI> browser, String... scopes) {
-        return authorizeAsync(HttpClient.newBuilder().executor(executor).build(), browser, scopes);
-    }
-
-    /**
-     * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
-     * <p>
-     * Then, the received authorization code is used to make an
-     * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
-     * <p>
-     * The executor used to the request the auth code and get the access token is the same specified in {@link HttpClient.Builder#executor(Executor)}. If the given http client does not provide an executor via {@link HttpClient#executor()}, a default single thread executor is used for requesting the authorization code.
+     * The callback to open the web browser will be executed asynchronously, facilitating the {@link HttpClient#executor() HttpClient's executor}
+     * (if an executor {@link HttpClient.Builder#executor(Executor) has been specified}).
      *
      * @param httpClient The http client used for the access token request
      * @param browser    An async callback (not blocking the executor) that opens a web browser with the URI it consumes
      * @param scopes     The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
      * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-     * @see #authorize(Consumer, String...)
+     * @see #authorize(HttpClient, Consumer, String...)
      */
+    @NonBlocking
     public CompletableFuture<HttpResponse<String>> authorizeAsync(HttpClient httpClient, Consumer<URI> browser, String... scopes) {
+        Executor executor = httpClient.executor().orElse(ForkJoinPool.commonPool());
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return requestAuthCode(browser, scopes);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }, httpClient.executor().orElse(ForkJoinPool.commonPool())).thenCompose(authorizedFlow -> authorizedFlow.getAccessTokenAsync(httpClient));
-    }
-
-    /**
-     * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
-     * <p>
-     * Then, the received authorization code is used to make an
-     * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
-     *
-     * @param browser An async callback (not blocking this thread) that opens a web browser with the URI it consumes
-     * @param scopes  The desired <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.3">scopes</a>
-     * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
-     * @throws IOException          In case of I/O errors when communicating with the token endpoint
-     * @throws InterruptedException When this thread is interrupted before a response is received
-     * @see #authorizeAsync(Executor, Consumer, String...)
-     */
-    @Blocking
-    public HttpResponse<String> authorize(Consumer<URI> browser, String... scopes) throws IOException, InterruptedException {
-        return authorize(HttpClient.newHttpClient(), browser, scopes);
+        }, executor).thenCompose(authorizedGrant -> authorizedGrant.getAccessTokenAsync(httpClient));
     }
 
     /**
@@ -189,7 +158,7 @@ public class AuthFlow {
      * @return The <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
      * @throws IOException          In case of I/O errors when communicating with the token endpoint
      * @throws InterruptedException When this thread is interrupted before a response is received
-     * @see #authorizeAsync(Executor, Consumer, String...)
+     * @see #authorizeAsync(HttpClient, Consumer, String...)
      */
     @Blocking
     public HttpResponse<String> authorize(HttpClient httpClient, Consumer<URI> browser, String... scopes) throws IOException, InterruptedException {
@@ -207,14 +176,14 @@ public class AuthFlow {
      */
     @Blocking
     @VisibleForTesting
-    AuthFlowWithCode requestAuthCode(Consumer<URI> browser, String... scopes) throws IOException {
+    WithAuthorizationCode requestAuthCode(Consumer<URI> browser, String... scopes) throws IOException {
         try (var redirectTarget = RedirectTarget.start(redirectPath, redirectPorts)) {
             redirectTarget.setSuccessResponse(successResponse);
             redirectTarget.setErrorResponse(errorResponse);
             var authUri = buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of(scopes));
             ForkJoinPool.commonPool().execute(() -> browser.accept(authUri));
             var code = redirectTarget.receive();
-            return new AuthFlowWithCode(redirectTarget.getRedirectUri().toASCIIString(), code);
+            return new WithAuthorizationCode(redirectTarget.getRedirectUri().toASCIIString(), code);
         }
     }
 
@@ -235,7 +204,7 @@ public class AuthFlow {
                 "redirect_uri", redirectEndpoint.toASCIIString()
         ));
 
-        if (scopes.size() > 0) {
+        if (!scopes.isEmpty()) {
             queryString += "&" + URIUtil.buildQueryString(Map.of("scope", String.join(" ", scopes)));
         }
         return URI.create(authEndpoint.getScheme() + "://" + authEndpoint.getRawAuthority() + authEndpoint.getRawPath() + "?" + queryString);
@@ -244,29 +213,25 @@ public class AuthFlow {
     /**
      * The successfully authenticated authentication flow, ready to retrieve an access token.
      */
-    class AuthFlowWithCode {
+    class WithAuthorizationCode {
         private final String redirectUri;
         private final String authorizationCode;
 
         @VisibleForTesting
-        AuthFlowWithCode(String redirectUri, String authorizationCode) {
+        WithAuthorizationCode(String redirectUri, String authorizationCode) {
             this.redirectUri = redirectUri;
             this.authorizationCode = authorizationCode;
         }
 
         @VisibleForTesting
         HttpRequest buildTokenRequest() {
-            return client.buildTokenRequest(Map.of( //
+            return client.createTokenRequest(Map.of( //
                     "grant_type", "authorization_code", //
                     "client_id", client.clientId, //
                     "code_verifier", pkce.getVerifier(), //
                     "code", authorizationCode, //
                     "redirect_uri", redirectUri //
-            ));
-        }
-
-        public CompletableFuture<HttpResponse<String>> getAccessTokenAsync(@BlockingExecutor Executor executor) {
-            return getAccessTokenAsync(HttpClient.newBuilder().executor(executor).build());
+            )).build();
         }
 
         public CompletableFuture<HttpResponse<String>> getAccessTokenAsync(HttpClient httpClient) {
@@ -274,15 +239,10 @@ public class AuthFlow {
         }
 
         @Blocking
-        public HttpResponse<String> getAccessToken() throws IOException, InterruptedException {
-            return getAccessToken(HttpClient.newHttpClient());
-        }
-
-        @Blocking
         public HttpResponse<String> getAccessToken(HttpClient httpClient) throws IOException, InterruptedException {
             // see https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
             // and https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
-            return httpClient.send(buildTokenRequest(), HttpResponse.BodyHandlers.ofString()); //TODO
+            return httpClient.send(buildTokenRequest(), HttpResponse.BodyHandlers.ofString());
         }
     }
 }

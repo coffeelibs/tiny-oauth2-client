@@ -8,6 +8,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
 /**
+ * A Proof Key for Code Exchange to protect against authorization code interception attack during the {@link AuthorizationCodeGrant}
+ *
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a>
  */
 class PKCE {

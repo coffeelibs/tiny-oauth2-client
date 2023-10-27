@@ -3,13 +3,19 @@ package io.github.coffeelibs.tinyoauth2client;
 import io.github.coffeelibs.tinyoauth2client.http.RedirectTarget;
 import io.github.coffeelibs.tinyoauth2client.http.response.Response;
 import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.stubbing.answers.AnswersWithDelay;
 
 import java.io.IOException;
 import java.net.URI;
@@ -22,11 +28,10 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public class AuthFlowTest {
+public class AuthorizationCodeGrantTest {
 
     private final TinyOAuth2Client client = Mockito.spy(new TinyOAuth2Client("my-client", URI.create("http://example.com/oauth2/token")));
     private final URI authEndpoint = URI.create("https://login.example.com/");
@@ -36,11 +41,11 @@ public class AuthFlowTest {
     @DisplayName("Configure")
     public class TestSetters {
 
-        private AuthFlow authFlow;
+        private AuthorizationCodeGrant grant;
 
         @BeforeEach
         public void setup() {
-            authFlow = new AuthFlow(client, authEndpoint, pkce);
+            grant = new AuthorizationCodeGrant(client, authEndpoint, pkce);
         }
 
         @Nested
@@ -50,7 +55,7 @@ public class AuthFlowTest {
             @Test
             @DisplayName("setSuccessResponse(null)")
             public void testNull() {
-                Assertions.assertThrows(NullPointerException.class, () -> authFlow.setSuccessResponse(null));
+                Assertions.assertThrows(NullPointerException.class, () -> grant.setSuccessResponse(null));
             }
 
             @Test
@@ -58,9 +63,9 @@ public class AuthFlowTest {
             public void testValidResponse() {
                 var response = Response.empty(Response.Status.OK);
 
-                Assertions.assertDoesNotThrow(() -> authFlow.setSuccessResponse(response));
+                Assertions.assertDoesNotThrow(() -> grant.setSuccessResponse(response));
 
-                Assertions.assertEquals(response, authFlow.successResponse);
+                Assertions.assertEquals(response, grant.successResponse);
             }
 
         }
@@ -72,7 +77,7 @@ public class AuthFlowTest {
             @Test
             @DisplayName("setErrorResponse(null)")
             public void testNull() {
-                Assertions.assertThrows(NullPointerException.class, () -> authFlow.setErrorResponse(null));
+                Assertions.assertThrows(NullPointerException.class, () -> grant.setErrorResponse(null));
             }
 
             @Test
@@ -80,9 +85,9 @@ public class AuthFlowTest {
             public void testValidResponse() {
                 var response = Response.empty(Response.Status.OK);
 
-                Assertions.assertDoesNotThrow(() -> authFlow.setErrorResponse(response));
+                Assertions.assertDoesNotThrow(() -> grant.setErrorResponse(response));
 
-                Assertions.assertEquals(response, authFlow.errorResponse);
+                Assertions.assertEquals(response, grant.errorResponse);
             }
 
         }
@@ -92,31 +97,31 @@ public class AuthFlowTest {
         public class TestRedirectPort {
 
             @Test
-            @DisplayName("defaults to AuthFlow.SYSTEM_ASSIGNED_PORT")
+            @DisplayName("defaults to AuthorizationCodeGrant.SYSTEM_ASSIGNED_PORT")
             public void testDefaultLocalPath() {
-                Assertions.assertArrayEquals(AuthFlow.SYSTEM_ASSIGNED_PORT, authFlow.redirectPorts);
+                Assertions.assertArrayEquals(AuthorizationCodeGrant.SYSTEM_ASSIGNED_PORT, grant.redirectPorts);
             }
 
             @Test
-            @DisplayName("setRedirectPort(AuthFlow.SYSTEM_ASSIGNED_PORT)")
+            @DisplayName("setRedirectPort(AuthorizationCodeGrant.SYSTEM_ASSIGNED_PORT)")
             public void testWithSystemAssignedLocalPort() {
-                Assertions.assertDoesNotThrow(() -> authFlow.setRedirectPort(AuthFlow.SYSTEM_ASSIGNED_PORT));
+                Assertions.assertDoesNotThrow(() -> grant.setRedirectPort(AuthorizationCodeGrant.SYSTEM_ASSIGNED_PORT));
 
-                Assertions.assertArrayEquals(new int[]{0}, authFlow.redirectPorts);
+                Assertions.assertArrayEquals(new int[]{0}, grant.redirectPorts);
             }
 
             @Test
             @DisplayName("setRedirectPort(null)")
             public void testWithNullLocalPort() {
-                Assertions.assertThrows(NullPointerException.class, () -> authFlow.setRedirectPort((int[]) null));
+                Assertions.assertThrows(NullPointerException.class, () -> grant.setRedirectPort((int[]) null));
             }
 
             @Test
             @DisplayName("setRedirectPort(1234, 5678)")
             public void testWithFixedLocalPorts() {
-                Assertions.assertDoesNotThrow(() -> authFlow.setRedirectPort(1234, 5678));
+                Assertions.assertDoesNotThrow(() -> grant.setRedirectPort(1234, 5678));
 
-                Assertions.assertArrayEquals(new int[]{1234, 5678}, authFlow.redirectPorts);
+                Assertions.assertArrayEquals(new int[]{1234, 5678}, grant.redirectPorts);
             }
 
         }
@@ -128,28 +133,28 @@ public class AuthFlowTest {
             @Test
             @DisplayName("defaults to autogenerated value")
             public void testDefaultLocalPath() {
-                Assertions.assertTrue(authFlow.redirectPath.matches("/[\\w-]{16}"));
+                Assertions.assertTrue(grant.redirectPath.matches("/[\\w-]{16}"));
             }
 
             @Test
             @DisplayName("setRedirectPath(null)")
             public void testWithNullLocalPath() {
                 //noinspection ConstantConditions
-                Assertions.assertThrows(NullPointerException.class, () -> authFlow.setRedirectPath(null));
+                Assertions.assertThrows(NullPointerException.class, () -> grant.setRedirectPath(null));
             }
 
             @Test
             @DisplayName("setRedirectPath(\"foo\")")
             public void testWithRelativeLocalPath() {
-                Assertions.assertThrows(IllegalArgumentException.class, () -> authFlow.setRedirectPath("foo"));
+                Assertions.assertThrows(IllegalArgumentException.class, () -> grant.setRedirectPath("foo"));
             }
 
             @Test
             @DisplayName("setRedirectPath(\"/foo\")")
             public void testWithAbsoluteLocalPath() {
-                Assertions.assertDoesNotThrow(() -> authFlow.setRedirectPath("/foo"));
+                Assertions.assertDoesNotThrow(() -> grant.setRedirectPath("/foo"));
 
-                Assertions.assertEquals("/foo", authFlow.redirectPath);
+                Assertions.assertEquals("/foo", grant.redirectPath);
             }
         }
 
@@ -161,9 +166,9 @@ public class AuthFlowTest {
     public void testBuildAuthUri(URI authEndpoint, URI redirectEndpoint, String csrfToken, Set<String> scopes, URI expectedResult) {
         var pkce = Mockito.mock(PKCE.class);
         Mockito.doReturn("C0D3Ch4ll3ng3").when(pkce).getChallenge();
-        var authFlow = new AuthFlow(client, authEndpoint, pkce);
+        var grant = new AuthorizationCodeGrant(client, authEndpoint, pkce);
 
-        var result = authFlow.buildAuthUri(redirectEndpoint, csrfToken, scopes);
+        var result = grant.buildAuthUri(redirectEndpoint, csrfToken, scopes);
 
         Assertions.assertEquals(expectedResult.getScheme(), result.getScheme());
         Assertions.assertEquals(expectedResult.getAuthority(), result.getAuthority());
@@ -187,10 +192,10 @@ public class AuthFlowTest {
     @Nested
     @SuppressWarnings("resource")
     @Timeout(1)
-    @DisplayName("With configured AuthFlow")
+    @DisplayName("With configured AuthorizationCodeGrant")
     public class WithMockedRedirectTarget {
 
-        private AuthFlow authFlow;
+        private AuthorizationCodeGrant grant;
         private RedirectTarget redirectTarget;
         private MockedStatic<RedirectTarget> redirectTargetClass;
         private Consumer<URI> browser;
@@ -198,7 +203,7 @@ public class AuthFlowTest {
         @BeforeEach
         @SuppressWarnings({"unchecked"})
         public void setup() throws IOException {
-            authFlow = new AuthFlow(client, authEndpoint, pkce);
+            grant = new AuthorizationCodeGrant(client, authEndpoint, pkce);
             redirectTarget = Mockito.mock(RedirectTarget.class);
             redirectTargetClass = Mockito.mockStatic(RedirectTarget.class);
             redirectTargetClass.when(() -> RedirectTarget.start(Mockito.any(), Mockito.any(int[].class))).thenReturn(redirectTarget);
@@ -225,40 +230,40 @@ public class AuthFlowTest {
         @Test
         @DisplayName("requestAuthCode(...) uses configured path and ports")
         public void testAuthorizeWithFixedPathAndPorts() {
-            authFlow.setRedirectPath("/foo").setRedirectPort(1234, 5678);
+            grant.setRedirectPath("/foo").setRedirectPort(1234, 5678);
 
-            Assertions.assertDoesNotThrow(() -> authFlow.requestAuthCode(browser));
+            Assertions.assertDoesNotThrow(() -> grant.requestAuthCode(browser));
 
-            redirectTargetClass.verify(() -> RedirectTarget.start(authFlow.redirectPath, authFlow.redirectPorts));
+            redirectTargetClass.verify(() -> RedirectTarget.start(grant.redirectPath, grant.redirectPorts));
         }
 
         @Test
         @DisplayName("requestAuthCode(...) calls redirectTarget.setSuccessResponse(...)")
         public void testApplySuccessResponse() {
-            Assertions.assertDoesNotThrow(() -> authFlow.requestAuthCode(browser));
+            Assertions.assertDoesNotThrow(() -> grant.requestAuthCode(browser));
 
-            Mockito.verify(redirectTarget).setSuccessResponse(authFlow.successResponse);
+            Mockito.verify(redirectTarget).setSuccessResponse(grant.successResponse);
         }
 
         @Test
         @DisplayName("requestAuthCode(...) calls redirectTarget.setErrorResponse(...)")
         public void testApplyErrorResponse() {
-            Assertions.assertDoesNotThrow(() -> authFlow.requestAuthCode(browser));
+            Assertions.assertDoesNotThrow(() -> grant.requestAuthCode(browser));
 
-            Mockito.verify(redirectTarget).setErrorResponse(authFlow.errorResponse);
+            Mockito.verify(redirectTarget).setErrorResponse(grant.errorResponse);
         }
 
         @Test
         @DisplayName("requestAuthCode(...) opens browser with URI returned from buildAuthUri(...)")
         public void testAuthorizeWithExistingQueryParams() throws IOException {
-            var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
+            var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
             var completeUri = URI.create("https://login.example.com/?some&more&params");
-            Mockito.doReturn(completeUri).when(authFlow).buildAuthUri(Mockito.any(), Mockito.any(), Mockito.any());
+            Mockito.doReturn(completeUri).when(grant).buildAuthUri(Mockito.any(), Mockito.any(), Mockito.any());
 
-            var result = authFlow.requestAuthCode(browser);
+            var result = grant.requestAuthCode(browser);
 
-            Assertions.assertInstanceOf(AuthFlow.AuthFlowWithCode.class, result);
-            Mockito.verify(authFlow).buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of());
+            Assertions.assertInstanceOf(AuthorizationCodeGrant.WithAuthorizationCode.class, result);
+            Mockito.verify(grant).buildAuthUri(redirectTarget.getRedirectUri(), redirectTarget.getCsrfToken(), Set.of());
             Mockito.verify(browser).accept(completeUri);
         }
 
@@ -269,14 +274,16 @@ public class AuthFlowTest {
             @Test
             @DisplayName("buildTokenRequest() builds new http request")
             public void testBuildTokenRequest() {
-                var authFlowWithCode = authFlow.new AuthFlowWithCode("redirect-uri", "auth-code");
+                var grantWithCode = grant.new WithAuthorizationCode("redirect-uri", "auth-code");
+                var requestBuilder = Mockito.mock(HttpRequest.Builder.class);
                 var request = Mockito.mock(HttpRequest.class);
-                Mockito.doReturn(request).when(client).buildTokenRequest(Mockito.any());
+                Mockito.doReturn(requestBuilder).when(client).createTokenRequest(Mockito.any());
+                Mockito.doReturn(request).when(requestBuilder).build();
 
-                var result = authFlowWithCode.buildTokenRequest();
+                var result = grantWithCode.buildTokenRequest();
 
                 Assertions.assertEquals(request, result);
-                Mockito.verify(client).buildTokenRequest(Map.of(//
+                Mockito.verify(client).createTokenRequest(Map.of(//
                         "grant_type", "authorization_code", //
                         "client_id", client.clientId, //
                         "code_verifier", pkce.getVerifier(), //
@@ -288,53 +295,35 @@ public class AuthFlowTest {
             @Test
             @DisplayName("getAccessTokenAsync(httpClient) sends access token request")
             public void testGetAccessTokenAsync() {
-                var authFlowWithCode = Mockito.spy(authFlow.new AuthFlowWithCode("redirect-uri", "auth-code"));
+                var grantWithCode = Mockito.spy(grant.new WithAuthorizationCode("redirect-uri", "auth-code"));
                 var httpClient = Mockito.mock(HttpClient.class);
                 var httpRequest = Mockito.mock(HttpRequest.class);
                 var httpRespone = Mockito.mock(HttpResponse.class);
-                Mockito.doReturn(httpRequest).when(authFlowWithCode).buildTokenRequest();
+                Mockito.doReturn(httpRequest).when(grantWithCode).buildTokenRequest();
                 Mockito.doReturn(CompletableFuture.completedFuture(httpRespone)).when(httpClient).sendAsync(Mockito.any(), Mockito.any());
 
-                var result = authFlowWithCode.getAccessTokenAsync(httpClient);
+                var result = grantWithCode.getAccessTokenAsync(httpClient);
 
                 Assertions.assertEquals(httpRespone, result.join());
-                Mockito.verify(authFlowWithCode).buildTokenRequest();
+                Mockito.verify(grantWithCode).buildTokenRequest();
                 Mockito.verify(httpClient).sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString());
             }
 
             @Test
-            @DisplayName("getAccessTokenAsync(executor) delegates to getAccessTokenAsync(httpClient)")
-            public void testGetAccessTokenAsync2() {
-                var authFlowWithCode = Mockito.spy(authFlow.new AuthFlowWithCode("redirect-uri", "auth-code"));
-                var executor = Mockito.mock(Executor.class);
-                var httpRespone = Mockito.mock(HttpResponse.class);
-                Mockito.doReturn(CompletableFuture.completedFuture(httpRespone)).when(authFlowWithCode).getAccessTokenAsync((HttpClient) Mockito.any());
-
-                authFlowWithCode.getAccessTokenAsync(executor);
-
-                ArgumentCaptor<HttpClient> httpClientCaptor = ArgumentCaptor.forClass(HttpClient.class);
-                Mockito.verify(authFlowWithCode).getAccessTokenAsync(httpClientCaptor.capture());
-                Assertions.assertEquals(executor, httpClientCaptor.getValue().executor().get());
-            }
-
-            @Test
-            @DisplayName("getAccessToken() sends access token request")
+            @DisplayName("getAccessToken(httpClient) sends access token request")
             public void testGetAccessToken() throws IOException, InterruptedException {
-                var authFlowWithCode = Mockito.spy(authFlow.new AuthFlowWithCode("redirect-uri", "auth-code"));
+                var grantWithCode = Mockito.spy(grant.new WithAuthorizationCode("redirect-uri", "auth-code"));
                 var httpClient = Mockito.mock(HttpClient.class);
                 var httpRequest = Mockito.mock(HttpRequest.class);
                 var httpRespone = Mockito.mock(HttpResponse.class);
-                try (var httpClientClass = Mockito.mockStatic(HttpClient.class)) {
-                    httpClientClass.when(HttpClient::newHttpClient).thenReturn(httpClient);
-                    Mockito.doReturn(httpRequest).when(authFlowWithCode).buildTokenRequest();
-                    Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
+                Mockito.doReturn(httpRequest).when(grantWithCode).buildTokenRequest();
+                Mockito.doReturn(httpRespone).when(httpClient).send(Mockito.any(), Mockito.any());
 
-                    var result = authFlowWithCode.getAccessToken();
+                var result = grantWithCode.getAccessToken(httpClient);
 
-                    Assertions.assertEquals(httpRespone, result);
-                    Mockito.verify(authFlowWithCode).buildTokenRequest();
-                    Mockito.verify(httpClient).send(httpRequest, HttpResponse.BodyHandlers.ofString());
-                }
+                Assertions.assertEquals(httpRespone, result);
+                Mockito.verify(grantWithCode).buildTokenRequest();
+                Mockito.verify(httpClient).send(httpRequest, HttpResponse.BodyHandlers.ofString());
             }
 
         }
@@ -342,37 +331,22 @@ public class AuthFlowTest {
     }
 
     @Test
+    @Timeout(3)
     @DisplayName("authorizeAsync(httpClient,...) runs requestAuthCode() and getAccessToken()")
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsync() throws IOException, ExecutionException, InterruptedException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
         var httpClient = Mockito.mock(HttpClient.class);
         Mockito.when(httpClient.executor()).thenReturn(Optional.empty());
-        var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
-        var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
+        var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
+        var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
         var httpResponse = Mockito.mock(HttpResponse.class);
-        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any());
-        Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(authFlowWithCode).getAccessTokenAsync((HttpClient) Mockito.any());
+        Mockito.doAnswer(new AnswersWithDelay(1000, invocation -> grantWithCode)).when(grant).requestAuthCode(Mockito.any());
+        Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(grantWithCode).getAccessTokenAsync(Mockito.any());
 
-        var result = authFlow.authorizeAsync(httpClient, browser);
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertEquals(httpResponse, result.get());
-    }
-
-
-    @Test
-    @DisplayName("authorizeAsync(executor, ...) delegates to authorizeAsync(httpClient,...) with executor set in httpClient")
-    @SuppressWarnings("unchecked")
-    public void testAuthorizeAsync2() {
-        var executor = Mockito.mock(Executor.class);
-        Consumer<URI> browser = Mockito.mock(Consumer.class);
-        var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
-
-        authFlow.authorizeAsync(executor, browser);
-        ArgumentCaptor<HttpClient> httpClientCaptor = ArgumentCaptor.forClass(HttpClient.class);
-
-        Mockito.verify(authFlow).authorizeAsync(httpClientCaptor.capture(), Mockito.eq(browser));
-        Assertions.assertEquals(executor, httpClientCaptor.getValue().executor().get());
     }
 
     @Test
@@ -380,11 +354,12 @@ public class AuthFlowTest {
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsyncWithError1() throws IOException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
-        //var executor = Mockito.mock(Executor.class);
-        var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
-        Mockito.doThrow(new IOException("error")).when(authFlow).requestAuthCode(Mockito.any());
+        var httpClient = HttpClient.newBuilder().executor(Runnable::run).build();
+        var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
+        Mockito.doThrow(new IOException("error")).when(grant).requestAuthCode(Mockito.any());
 
-        var result = authFlow.authorizeAsync(Runnable::run, browser);
+
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertTrue(result.isCompletedExceptionally());
     }
@@ -394,12 +369,12 @@ public class AuthFlowTest {
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsyncWithError2() throws IOException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
-        //var executor = Mockito.mock(Executor.class);
-        var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
-        var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
-        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any());
+        var httpClient = HttpClient.newBuilder().executor(Runnable::run).build();
+        var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
+        var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
+        Mockito.doReturn(grantWithCode).when(grant).requestAuthCode(Mockito.any());
 
-        var result = authFlow.authorizeAsync(Runnable::run, browser);
+        var result = grant.authorizeAsync(httpClient, browser);
 
         Assertions.assertTrue(result.isCompletedExceptionally());
     }
@@ -410,13 +385,13 @@ public class AuthFlowTest {
     public void testAuthorize() throws IOException, InterruptedException {
         Consumer<URI> browser = Mockito.mock(Consumer.class);
         var httpClient = Mockito.mock(HttpClient.class);
-        var authFlow = Mockito.spy(new AuthFlow(client, authEndpoint, pkce));
-        var authFlowWithCode = Mockito.mock(AuthFlow.AuthFlowWithCode.class);
+        var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
+        var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
         var httpResponse = Mockito.mock(HttpResponse.class);
-        Mockito.doReturn(authFlowWithCode).when(authFlow).requestAuthCode(Mockito.any());
-        Mockito.doReturn(httpResponse).when(authFlowWithCode).getAccessToken(httpClient);
+        Mockito.doReturn(grantWithCode).when(grant).requestAuthCode(Mockito.any());
+        Mockito.doReturn(httpResponse).when(grantWithCode).getAccessToken(httpClient);
 
-        var result = authFlow.authorize(httpClient, browser);
+        var result = grant.authorize(httpClient, browser);
 
         Assertions.assertEquals(httpResponse, result);
     }

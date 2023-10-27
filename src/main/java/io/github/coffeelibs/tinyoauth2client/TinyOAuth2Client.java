@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +64,7 @@ public class TinyOAuth2Client {
      * Initializes a new <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Flow</a> with <a href="https://datatracker.ietf.org/doc/html/rfc7636">PKCE</a>
      *
      * @param authEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1">Authorization Endpoint</a>
-     * @return A new Authentication Flow
+     * @return A new Authorization Code Grant
      * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Flow</a>
      * @deprecated Use {@link #authorizationCodeGrant(URI)} instead, will be removed in a future version
      */
@@ -76,11 +77,23 @@ public class TinyOAuth2Client {
      * Initializes a new <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Grant</a> with <a href="https://datatracker.ietf.org/doc/html/rfc7636">PKCE</a>
      *
      * @param authEndpoint The URI of the <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-3.1">Authorization Endpoint</a>
-     * @return A new Authentication Flow
+     * @return A new Authorization Code Grant
      * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1">Authorization Code Flow</a>
      */
     public AuthorizationCodeGrant authorizationCodeGrant(URI authEndpoint) {
         return new AuthorizationCodeGrant(this, authEndpoint, new PKCE());
+    }
+
+    /**
+     * Initializes a new <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.4">Client Credentials Grant</a>
+     *
+     * @param charset The <a href="https://datatracker.ietf.org/doc/html/rfc7617#section-2.1">charset used to encode the credentials</a>, as expected by the authorization server
+     * @param clientSecret The client secret
+     * @return A new Client Credentials Grant
+     * @see <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.4">Client Credentials Grant</a>
+     */
+    public ClientCredentialsGrant clientCredentialsGrant(Charset charset, CharSequence clientSecret) {
+        return new ClientCredentialsGrant(this, charset, clientSecret);
     }
 
     /**
@@ -147,28 +160,28 @@ public class TinyOAuth2Client {
 
     @VisibleForTesting
     HttpRequest buildRefreshTokenRequest(String refreshToken, String... scopes) {
-        return buildTokenRequest(Map.of(//
+        // TODO: https://datatracker.ietf.org/doc/html/rfc6749#section-6: If the client type is confidential or the client was issued client credentials [...] the client MUST authenticate
+        return createTokenRequest(Map.of(//
                 "grant_type", "refresh_token", //
                 "refresh_token", refreshToken, //
                 "client_id", clientId, //
                 "scope", String.join(" ", scopes)
-        ));
+        )).build();
     }
 
     /**
      * Creates a new HTTP request targeting the {@link #tokenEndpoint}.
      *
      * @param parameters Parameters to send in an {@code application/x-www-form-urlencoded} request body
-     * @return A new http request
+     * @return A new http request builder
      */
     @Contract("_ -> new")
-    HttpRequest buildTokenRequest(Map<String, String> parameters) {
+    HttpRequest.Builder createTokenRequest(Map<String, String> parameters) {
         var urlencodedParams = URIUtil.buildQueryString(parameters);
         return HttpRequest.newBuilder(tokenEndpoint) //
                 .header("Content-Type", "application/x-www-form-urlencoded") //
                 .POST(HttpRequest.BodyPublishers.ofString(urlencodedParams)) //
-                .timeout(requestTimeout) //
-                .build();
+                .timeout(requestTimeout);
     }
 
 }

@@ -225,13 +225,13 @@ public class AuthorizationCodeGrant {
 
         @VisibleForTesting
         HttpRequest buildTokenRequest() {
-            return client.buildTokenRequest(Map.of( //
+            return client.createTokenRequest(Map.of( //
                     "grant_type", "authorization_code", //
                     "client_id", client.clientId, //
                     "code_verifier", pkce.getVerifier(), //
                     "code", authorizationCode, //
                     "redirect_uri", redirectUri //
-            ));
+            )).build();
         }
 
         public CompletableFuture<HttpResponse<String>> getAccessTokenAsync(HttpClient httpClient) {

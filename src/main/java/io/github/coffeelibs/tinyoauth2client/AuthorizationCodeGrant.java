@@ -7,6 +7,7 @@ import io.github.coffeelibs.tinyoauth2client.util.URIUtil;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NonBlocking;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
@@ -119,13 +120,12 @@ public class AuthorizationCodeGrant {
     }
 
     /**
-     * Asks the given {@code browser} to browse the authorization URI. This method will block until the browser is
-     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>.
+     * Asks the given {@code browser} to browse the authorization URI. As soon as the browser is
+     * <a href="https://datatracker.ietf.org/doc/html/rfc8252#section-4.1">redirected back to this application</a>, the
+     * received authorization code is used to make an <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
      * <p>
-     * Then, the received authorization code is used to make an
-     * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3">Access Token Request</a>.
-     * <p>
-     * The executor used to the request the auth code and get the access token is the same specified in {@link HttpClient.Builder#executor(Executor)}. If the given http client does not provide an executor via {@link HttpClient#executor()}, a default single thread executor is used for requesting the authorization code.
+     * The executor used to the request the auth code and get the access token is the same specified in {@link HttpClient.Builder#executor(Executor)}.
+     * If the given http client does not provide an executor via {@link HttpClient#executor()}, a default single thread executor is used for requesting the authorization code.
      *
      * @param httpClient The http client used for the access token request
      * @param browser    An async callback (not blocking the executor) that opens a web browser with the URI it consumes
@@ -133,14 +133,16 @@ public class AuthorizationCodeGrant {
      * @return The future <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4">Access Token Response</a>
      * @see #authorize(HttpClient, Consumer, String...)
      */
+    @NonBlocking
     public CompletableFuture<HttpResponse<String>> authorizeAsync(HttpClient httpClient, Consumer<URI> browser, String... scopes) {
+        Executor executor = httpClient.executor().orElse(ForkJoinPool.commonPool());
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return requestAuthCode(browser, scopes);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }, httpClient.executor().orElse(ForkJoinPool.commonPool())).thenCompose(authorizedGrant -> authorizedGrant.getAccessTokenAsync(httpClient));
+        }, executor).thenCompose(authorizedGrant -> authorizedGrant.getAccessTokenAsync(httpClient));
     }
 
     /**
@@ -240,7 +242,7 @@ public class AuthorizationCodeGrant {
         public HttpResponse<String> getAccessToken(HttpClient httpClient) throws IOException, InterruptedException {
             // see https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
             // and https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
-            return httpClient.send(buildTokenRequest(), HttpResponse.BodyHandlers.ofString()); //TODO
+            return httpClient.send(buildTokenRequest(), HttpResponse.BodyHandlers.ofString());
         }
     }
 }

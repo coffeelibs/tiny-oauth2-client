@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.stubbing.answers.AnswersWithDelay;
 
 import java.io.IOException;
 import java.net.URI;
@@ -328,6 +329,7 @@ public class AuthorizationCodeGrantTest {
     }
 
     @Test
+    @Timeout(3)
     @DisplayName("authorizeAsync(httpClient,...) runs requestAuthCode() and getAccessToken()")
     @SuppressWarnings("unchecked")
     public void testAuthorizeAsync() throws IOException, ExecutionException, InterruptedException {
@@ -337,8 +339,8 @@ public class AuthorizationCodeGrantTest {
         var grant = Mockito.spy(new AuthorizationCodeGrant(client, authEndpoint, pkce));
         var grantWithCode = Mockito.mock(AuthorizationCodeGrant.WithAuthorizationCode.class);
         var httpResponse = Mockito.mock(HttpResponse.class);
-        Mockito.doReturn(grantWithCode).when(grant).requestAuthCode(Mockito.any());
-        Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(grantWithCode).getAccessTokenAsync((HttpClient) Mockito.any());
+        Mockito.doAnswer(new AnswersWithDelay(1000, invocation -> grantWithCode)).when(grant).requestAuthCode(Mockito.any());
+        Mockito.doReturn(CompletableFuture.completedFuture(httpResponse)).when(grantWithCode).getAccessTokenAsync(Mockito.any());
 
         var result = grant.authorizeAsync(httpClient, browser);
 

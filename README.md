@@ -47,7 +47,7 @@ Configure your Authorization Server to allow `http://127.0.0.1/*` as a redirect 
 ```java
 // this library will just perform the Authorization Flow:
 var httpResponse = oauthClient.authorizationCodeGrant(URI.create("https://login.example.com/oauth2/authorize"))
-		.authorize(httpClient, uri -> System.out.println("Please login on " + uri));
+		.authorize(httpClient, uri -> System.out.println("Please login on " + uri), "openid", "profile"); // optionally add scopes here);
 ```
 
 If your authorization server doesn't allow wildcards, you can also configure a fixed path (and even port) via e.g. `setRedirectPath("/callback")` and `setRedirectPorts(8080)` before calling `authorize(...)`.
@@ -58,7 +58,7 @@ which allows the client to authenticate directly without further user interactio
 
 ```java
 var httpResponse = oauthClient.clientCredentialsGrant(UTF_8, "client secret")
-        .authorize(httpClient);
+        .authorize(httpClient, "openid", "profile"); // optionally add scopes here
 ```
 
 ### Parsing the Response

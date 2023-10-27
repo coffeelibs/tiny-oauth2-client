@@ -17,7 +17,19 @@ support for [PKCE](https://datatracker.ietf.org/doc/html/rfc8252#section-8.1) an
 
 ## Usage
 
-You begin building an OAuth 2.0 Client via the fluent API:
+This library requires an instance of [`java.net.http.HttpClient`](https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/java/net/http/HttpClient.html).
+
+```java
+// usually the default is sufficent:
+var httpClient = HttpClient.newHttpClient();
+
+// but feel free to adjust it to your needs, e.g. by applying custom proxy settings:
+var httpClient = HttpClient.newBuilder()
+    .proxy(ProxySelector.of(InetSocketAddress.createUnresolved("https:\\example.com",1337)))
+    .build();
+```
+
+Now to begin, start building an OAuth 2.0 Client via the fluent API:
 
 ```java
 var oauthClient = TinyOAuth2.client("oauth-client-id") // The client identifier
@@ -27,15 +39,6 @@ var oauthClient = TinyOAuth2.client("oauth-client-id") // The client identifier
 ```
 
 Next, continue with a specific grant type by invoking `.authorizationCodeGrant(...)` or `.clientCredentialsGrant(...)` (more may be added eventually).
-
-This library requires you to provide an instance of [`java.net.http.HttpClient`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.html).
-This allows you to configure it to your needs, e.g. by applying proxy settings:
-
-```java
-var httpClient = HttpClient.newBuilder()
-    .proxy(ProxySelector.of(InetSocketAddress.createUnresolved("https:\\example.com",1337)))
-    .build();
-```
 
 ### Authorization Code Grant
 Usually, you would want to use the [Authorization Code Grant](https://datatracker.ietf.org/doc/html/rfc6749#section-4.1) type to obtain access tokens.
@@ -51,7 +54,7 @@ If your authorization server doesn't allow wildcards, you can also configure a f
 
 ### Client Credentials Grant
 Alternatively, if your client shall act on behalf of a service account, use the [Client Credentials Grant](https://datatracker.ietf.org/doc/html/rfc6749#section-4.4) type,
-which allows the client to authenticate directly without further user interaction: 
+which allows the client to authenticate directly without further user interaction:
 
 ```java
 var httpResponse = oauthClient.clientCredentialsGrant(UTF_8, "client secret")
